@@ -17,6 +17,7 @@ contract Pool {
 
     /* Events */
     error Pool__ReceiveBalanceZero();
+    error Pool__TokenNotFound();
 
     /* Modifiers */
 
@@ -91,7 +92,36 @@ contract Pool {
         return 0;
     }
 
+    function getProvider(uint256 index) public view returns (address) {
+        return s_providers[index];
+    }
+
+    /* Internal Functions */
+
+    // calculate the equivalent amount of the token to be received
+    // TODO: change to internal
+    function convertTokenAmount(
+        uint256 sendTokenAmount,
+        address sendTokenAddress,
+        address receiveTokenAddress
+    ) public view returns (uint256) {
+        // get current contract balance for each token
+        uint256 sendTokenBalance = getTokenBalance(sendTokenAddress);
+        uint256 receiveTokenBalance = getTokenBalance(receiveTokenAddress);
+
+        // formula for converting tokens
+        uint256 currentSwapPrice = calculateCurrentSwapPrice(
+            sendTokenAmount,
+            sendTokenBalance,
+            receiveTokenBalance
+        );
+
+        // calculate the equivalent amount of the token to be received
+        return (sendTokenAmount * 1e18) / currentSwapPrice;
+    }
+
     // formula for converting tokens
+    // TODO: change to internal function
     function calculateCurrentSwapPrice(
         uint256 sendTokenAmount,
         uint256 sendTokenBalance,
@@ -107,38 +137,22 @@ contract Pool {
         return currentSwapPrice;
     }
 
-    function getProvider(uint256 index) public view returns (address) {
-        return s_providers[index];
-    }
-
-    /* Internal Functions */
-
-    function convertTokenAmount(
-        uint256 sendTokenAmount,
-        address sendTokenAddress,
-        address receiveTokenAddress
-    ) internal view returns (uint256) {
-        // get current contract balance for each token
-        uint256 sendTokenBalance = getTokenBalance(sendTokenAddress);
-        uint256 receiveTokenBalance = getTokenBalance(receiveTokenAddress);
-
-        // formula for converting tokens
-        uint256 currentSwapPrice = calculateCurrentSwapPrice(
-            sendTokenAmount,
-            sendTokenBalance,
-            receiveTokenBalance
-        );
-
-        // calculate the equivalent amount of the return token
-        uint256 receiveTokenAmount = sendTokenAmount * currentSwapPrice;
-
-        return receiveTokenAmount;
-    }
-
-    function getTokenBalance(address tokenAddress) internal view returns (uint256) {
+    // get the token balance for the contract
+    // TODO: fix this function to get the actual balance
+    // TODO: change to internal function
+    function getTokenBalance(address tokenAddress) public view returns (uint256) {
         uint256 ethBalance = 10 * 1e18;
-        uint256 usdcBalance = 100000 * 1e18;
-        uint256 tokenBalance = (tokenAddress == i_ethAddress) ? ethBalance : usdcBalance;
+        uint256 usdcBalance = 16000 * 1e18;
+        uint256 tokenBalance;
+        if (tokenAddress == i_ethAddress) {
+            tokenBalance = ethBalance;
+        } else {
+            if (tokenAddress == i_usdcAddress) {
+                tokenBalance = usdcBalance;
+            } else {
+                revert Pool__TokenNotFound();
+            }
+        }
         return tokenBalance;
     }
 }
