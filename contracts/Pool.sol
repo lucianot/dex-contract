@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.7;
 
+import "./interfaces/IERC20.sol";
+
 /**
  * @title Pool
  * @author Luciano Tavares
@@ -9,7 +11,7 @@ contract Pool {
     /* Type Declarations */
 
     /* State Variables */
-    address private immutable i_ethAddress;
+    address private immutable i_wethAddress;
     address private immutable i_usdcAddress;
 
     address payable[] private s_providers;
@@ -22,9 +24,9 @@ contract Pool {
     /* Modifiers */
 
     /* Constructor */
-    constructor() {
-        i_ethAddress = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-        i_usdcAddress = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    constructor(address wethAddress, address usdcAddress) {
+        i_wethAddress = wethAddress;
+        i_usdcAddress = usdcAddress;
     }
 
     /* Receive function (if exists) */
@@ -58,11 +60,11 @@ contract Pool {
 
         // set the correct addresses for the send and receive tokens
         if (keccak256(abi.encodePacked(sendTokenTicker)) == keccak256(abi.encodePacked("ETH"))) {
-            sendTokenAddress = i_ethAddress;
+            sendTokenAddress = i_wethAddress;
             receiveTokenAddress = i_usdcAddress;
         } else {
             sendTokenAddress = i_usdcAddress;
-            receiveTokenAddress = i_ethAddress;
+            receiveTokenAddress = i_wethAddress;
         }
 
         // calculate the equivalent amount of receive token
@@ -76,7 +78,7 @@ contract Pool {
         // if not, return error
 
         // get authorization for send token
-        // requestApprovalFromSender(sendTokenAmount, sendTokenAddress, senderAccount);
+        requestApprovalFromSender(sendTokenAddress, sendTokenAmount, msg.sender);
 
         // receive tokens from sender
         // receiveTokenFromSender(sendTokenAmount, sendTokenAddress, senderAccount);
@@ -87,27 +89,15 @@ contract Pool {
         // return status?
     }
 
-    // view your pool balance
-    function getUserAccountData() public view returns (uint256) {
-        return 0;
-    }
-
-    function getProvider(uint256 index) public view returns (address) {
-        return s_providers[index];
-    }
-
-    /* Internal Functions */
-
     // calculate the equivalent amount of the token to be received
-    // TODO: change to internal
     function convertTokenAmount(
         uint256 sendTokenAmount,
         address sendTokenAddress,
         address receiveTokenAddress
     ) public view returns (uint256) {
         // get current contract balance for each token
-        uint256 sendTokenBalance = getTokenBalance(sendTokenAddress);
-        uint256 receiveTokenBalance = getTokenBalance(receiveTokenAddress);
+        uint256 sendTokenBalance = getContractBalance(sendTokenAddress);
+        uint256 receiveTokenBalance = getContractBalance(receiveTokenAddress);
 
         // formula for converting tokens
         uint256 currentSwapPrice = calculateCurrentSwapPrice(
@@ -120,40 +110,56 @@ contract Pool {
         return (sendTokenAmount * 1e18) / currentSwapPrice;
     }
 
+    // view your pool balance
+    function getUserAccountData() public pure returns (uint256) {
+        return 0;
+    }
+
+    function getProvider(uint256 index) public view returns (address) {
+        return s_providers[index];
+    }
+
+    function getWethAddress() public view returns (address) {
+        return i_wethAddress;
+    }
+
+    function getUsdcAddress() public view returns (address) {
+        return i_usdcAddress;
+    }
+
+    /* Internal Functions */
+
     // formula for converting tokens
     // TODO: change to internal function
     function calculateCurrentSwapPrice(
         uint256 sendTokenAmount,
         uint256 sendTokenBalance,
         uint256 receiveTokenBalance
-    ) public view returns (uint256) {
+    ) public pure returns (uint256) {
         // revert if receive token balance is 0
         if (receiveTokenBalance == 0) {
             revert Pool__ReceiveBalanceZero();
         }
 
-        uint256 currentSwapPrice = ((sendTokenBalance + sendTokenAmount) * 1e18) /
-            receiveTokenBalance;
-        return currentSwapPrice;
+        return ((sendTokenBalance + sendTokenAmount) * 1e18) / receiveTokenBalance;
     }
 
     // get the token balance for the contract
-    // TODO: fix this function to get the actual balance
     // TODO: change to internal function
-    function getTokenBalance(address tokenAddress) public view returns (uint256) {
-        uint256 ethBalance = 10 * 1e18;
-        uint256 usdcBalance = 16000 * 1e18;
-        uint256 tokenBalance;
-        if (tokenAddress == i_ethAddress) {
-            tokenBalance = ethBalance;
-        } else {
-            if (tokenAddress == i_usdcAddress) {
-                tokenBalance = usdcBalance;
-            } else {
-                revert Pool__TokenNotFound();
-            }
-        }
-        return tokenBalance;
+    function getContractBalance(address tokenAddress) public view returns (uint256) {
+        IERC20 ERC20Contract = IERC20(tokenAddress);
+        return ERC20Contract.balanceOf(address(this));
+    }
+
+    // request approval from sender
+    // TODO: change to internal function
+    function requestApprovalFromSender(
+        address sendTokenAddress,
+        uint256 sendTokenAmount,
+        address senderAccount
+    ) public returns (bool) {
+        IERC20 ERC20Contract = IERC20(sendTokenAddress);
+        return ERC20Contract.approve(senderAccount, sendTokenAmount);
     }
 }
 

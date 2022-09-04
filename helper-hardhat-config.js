@@ -40,6 +40,8 @@ const networkConfig = {
     },
     1: {
         name: "mainnet",
+        wethToken: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+        usdcToken: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
         linkToken: "0x514910771af9ca656af840dff83e8264ecf986ca",
         fundAmount: "0",
         keepersUpdateInterval: "30",

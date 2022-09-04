@@ -1,4 +1,4 @@
-const { getNamedAccounts, deployments, network } = require("hardhat")
+const { getNamedAccounts, deployments, network, ethers } = require("hardhat")
 const {
     networkConfig,
     developmentChains,
@@ -9,29 +9,22 @@ const { verify } = require("../helper-functions")
 module.exports = async ({ getNamedAccounts, deployments }) => {
     const { deploy, log } = deployments
     const { deployer } = await getNamedAccounts()
-    // const chainId = network.config.chainId
+    const chainId = network.config.chainId
 
-    // if (chainId == 31337) {
-    //     //
-    //     vrfCoordinatorV2Mock = await ethers.getContract("VRFCoordinatorV2Mock")
-    //     vrfCoordinatorV2Address = vrfCoordinatorV2Mock.address
-    //     const transactionResponse = await vrfCoordinatorV2Mock.createSubscription()
-    //     const transactionReceipt = await transactionResponse.wait()
-    //     subscriptionId = transactionReceipt.events[0].args.subId
-    //     // Fund the subscription
-    //     // Our mock makes it so we don't actually have to worry about sending fund
-    //     await vrfCoordinatorV2Mock.fundSubscription(subscriptionId, FUND_AMOUNT)
-    // } else {
-    //     vrfCoordinatorV2Address = networkConfig[chainId]["vrfCoordinatorV2"]
-    //     subscriptionId = networkConfig[chainId]["subscriptionId"]
-    // }
+    const wethAddress = developmentChains.includes(network.name)
+        ? (await deployments.get("WethToken")).address
+        : networkConfig[chainId]["wethToken"]
+
+    const usdcAddress = developmentChains.includes(network.name)
+        ? (await deployments.get("UsdcToken")).address
+        : networkConfig[chainId]["usdcToken"]
 
     const waitBlockConfirmations = developmentChains.includes(network.name)
         ? 1
         : VERIFICATION_BLOCK_CONFIRMATIONS
 
     log("----------------------------------------------------")
-    const arguments = []
+    const arguments = [wethAddress, usdcAddress]
     const pool = await deploy("Pool", {
         from: deployer,
         args: arguments,
@@ -51,4 +44,4 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
     }
 }
 
-module.exports.tags = ["all", "pool"]
+module.exports.tags = ["all", "pool", "main"]
