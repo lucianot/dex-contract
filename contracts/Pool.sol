@@ -78,10 +78,11 @@ contract Pool {
         // if not, return error
 
         // get authorization for send token
-        requestApprovalFromSender(sendTokenAddress, sendTokenAmount, msg.sender);
+        // TODO: this should be moved to front-end app
+        // requestApprovalFromSender(sendTokenAddress, sendTokenAmount, msg.sender);
 
         // receive tokens from sender
-        // receiveTokenFromSender(sendTokenAmount, sendTokenAddress, senderAccount);
+        _receiveTokenFromSender(sendTokenAddress, msg.sender, sendTokenAmount);
 
         // send other token to depositor
         // sendTokenToSender(receiveTokenAmount, receiveTokenTicker, senderAccount);
@@ -96,11 +97,11 @@ contract Pool {
         address receiveTokenAddress
     ) public view returns (uint256) {
         // get current contract balance for each token
-        uint256 sendTokenBalance = getContractBalance(sendTokenAddress);
-        uint256 receiveTokenBalance = getContractBalance(receiveTokenAddress);
+        uint256 sendTokenBalance = _getContractBalance(sendTokenAddress);
+        uint256 receiveTokenBalance = _getContractBalance(receiveTokenAddress);
 
         // formula for converting tokens
-        uint256 currentSwapPrice = calculateCurrentSwapPrice(
+        uint256 currentSwapPrice = _calculateCurrentSwapPrice(
             sendTokenAmount,
             sendTokenBalance,
             receiveTokenBalance
@@ -131,7 +132,7 @@ contract Pool {
 
     // formula for converting tokens
     // TODO: change to internal function
-    function calculateCurrentSwapPrice(
+    function _calculateCurrentSwapPrice(
         uint256 sendTokenAmount,
         uint256 sendTokenBalance,
         uint256 receiveTokenBalance
@@ -146,7 +147,7 @@ contract Pool {
 
     // get the token balance for the contract
     // TODO: change to internal function
-    function getContractBalance(address tokenAddress) public view returns (uint256) {
+    function _getContractBalance(address tokenAddress) public view returns (uint256) {
         IERC20 ERC20Contract = IERC20(tokenAddress);
         return ERC20Contract.balanceOf(address(this));
     }
@@ -154,12 +155,23 @@ contract Pool {
     // request approval from sender
     // TODO: change to internal function
     function requestApprovalFromSender(
-        address sendTokenAddress,
-        uint256 sendTokenAmount,
+        address tokenAddress,
+        uint256 tokenAmount,
         address senderAccount
     ) public returns (bool) {
-        IERC20 ERC20Contract = IERC20(sendTokenAddress);
-        return ERC20Contract.approve(senderAccount, sendTokenAmount);
+        IERC20 ERC20Contract = IERC20(tokenAddress);
+        return ERC20Contract.approve(senderAccount, tokenAmount);
+    }
+
+    // transfer token from sender
+    // TODO: change to internal function
+    function _receiveTokenFromSender(
+        address tokenAddress,
+        address senderAddress,
+        uint256 tokenAmount
+    ) public returns (bool) {
+        IERC20 ERC20Contract = IERC20(tokenAddress);
+        return ERC20Contract.transferFrom(senderAddress, address(this), tokenAmount);
     }
 }
 
