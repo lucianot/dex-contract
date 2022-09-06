@@ -52,7 +52,11 @@ contract Pool {
     function withdraw() public payable {}
 
     // swap tokens
-    function swap(uint256 sendTokenAmount, string memory sendTokenTicker) public payable {
+    function swap(uint256 sendTokenAmount, string memory sendTokenTicker)
+        public
+        payable
+        returns (bool)
+    {
         address sendTokenAddress;
         address receiveTokenAddress;
 
@@ -74,20 +78,15 @@ contract Pool {
             receiveTokenAddress
         );
 
-        // check if there is enough liquidity in the pool
-        // if not, return error
-
-        // get authorization for send token
-        // TODO: this should be moved to front-end app
-        // requestApprovalFromSender(sendTokenAddress, sendTokenAmount, msg.sender);
-
         // receive tokens from sender
         _receiveTokenFromSender(sendTokenAddress, msg.sender, sendTokenAmount);
 
         // send other token to depositor
         _sendTokenToSender(receiveTokenAddress, msg.sender, receiveTokenAmount);
 
-        // return status?
+        // TODO: emit event
+
+        return true;
     }
 
     // calculate the equivalent amount of the token to be received
@@ -136,7 +135,7 @@ contract Pool {
         uint256 sendTokenAmount,
         uint256 sendTokenBalance,
         uint256 receiveTokenBalance
-    ) public pure returns (uint256) {
+    ) internal pure returns (uint256) {
         // revert if receive token balance is 0
         if (receiveTokenBalance == 0) {
             revert Pool__ReceiveBalanceZero();
@@ -147,7 +146,7 @@ contract Pool {
 
     // get the token balance for the contract
     // TODO: change to internal function
-    function _getContractBalance(address tokenAddress) public view returns (uint256) {
+    function _getContractBalance(address tokenAddress) internal view returns (uint256) {
         IERC20 ERC20Contract = IERC20(tokenAddress);
         return ERC20Contract.balanceOf(address(this));
     }
@@ -158,7 +157,7 @@ contract Pool {
         address tokenAddress,
         uint256 tokenAmount,
         address senderAccount
-    ) public returns (bool) {
+    ) private returns (bool) {
         IERC20 ERC20Contract = IERC20(tokenAddress);
         return ERC20Contract.approve(senderAccount, tokenAmount);
     }
@@ -169,7 +168,7 @@ contract Pool {
         address tokenAddress,
         address senderAddress,
         uint256 tokenAmount
-    ) public returns (bool) {
+    ) private returns (bool) {
         IERC20 ERC20Contract = IERC20(tokenAddress);
         return ERC20Contract.transferFrom(senderAddress, address(this), tokenAmount);
     }
@@ -180,7 +179,7 @@ contract Pool {
         address tokenAddress,
         address senderAddress,
         uint256 tokenAmount
-    ) public returns (bool) {
+    ) private returns (bool) {
         IERC20 ERC20Contract = IERC20(tokenAddress);
         return ERC20Contract.transfer(senderAddress, tokenAmount);
     }

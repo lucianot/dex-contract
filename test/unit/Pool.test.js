@@ -1,7 +1,7 @@
 const { assert, expect } = require("chai")
 const { network, deployments, ethers } = require("hardhat")
+const { utils, BigNumber } = require("ethers")
 const { developmentChains } = require("../../helper-hardhat-config")
-// const IERC20 = "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20"
 
 !developmentChains.includes(network.name)
     ? describe.skip
@@ -10,10 +10,10 @@ const { developmentChains } = require("../../helper-hardhat-config")
 
           async function fundAddress(toAddress, wethAmount, usdcAmount) {
               // fund Pool contract with WETH
-              await weth.transfer(toAddress, ethers.utils.parseEther(wethAmount))
+              await weth.transfer(toAddress, utils.parseEther(wethAmount))
 
               // fund Pool contract with USDC
-              await usdc.transfer(toAddress, ethers.utils.parseEther(usdcAmount))
+              await usdc.transfer(toAddress, utils.parseEther(usdcAmount))
           }
 
           beforeEach(async function () {
@@ -25,6 +25,74 @@ const { developmentChains } = require("../../helper-hardhat-config")
               // deploy tokens
               weth = await ethers.getContract("WethToken", deployer)
               usdc = await ethers.getContract("UsdcToken", deployer)
+          })
+
+          // Swap
+          describe("swap", function () {
+              let sendTokenAmount
+
+              describe("valid", function () {
+                  beforeEach(async function () {
+                      sendTokenAmount = utils.parseEther("2") // 2 WETH
+                      // fund pool with tokens
+                      await fundAddress(pool.address, "10", "16000") // 10 WETH, 16_000 USDC
+                      // fund sender with WETH
+                      await fundAddress(sender.address, utils.formatEther(sendTokenAmount), "0")
+                      // approve Pool contract to spend sender's WETH
+                      await weth.connect(sender).approve(pool.address, sendTokenAmount)
+                      // swap WETH for USDC
+                      await pool.connect(sender).swap(sendTokenAmount, "ETH")
+                  })
+
+                  it("transfers the correct amount of send tokens to pool", async function () {
+                      const actualBalance = await weth.balanceOf(pool.address)
+                      const expectedBalance = utils.parseEther("12")
+                      assert.equal(actualBalance.toString(), expectedBalance.toString())
+                  })
+
+                  it("transfers the correct amount of receive tokens to sender", async function () {
+                      const actualBalance = await usdc.balanceOf(sender.address)
+                      const expectedBalance = utils.parseEther("2666.666666666666666666")
+                      assert.equal(actualBalance.toString(), expectedBalance.toString())
+                  })
+              })
+
+              describe("invalid", function () {
+                  beforeEach(async function () {
+                      sendTokenAmount = utils.parseEther("2") // 2 WETH
+                  })
+
+                  it("reverts if sender does not have enough send tokens", async function () {
+                      // fund pool with tokens
+                      await fundAddress(pool.address, "10", "16000") // 10 WETH, 16_000 USDC
+                      // approve Pool contract to spend sender's WETH
+                      await weth.connect(sender).approve(pool.address, sendTokenAmount)
+                      await expect(
+                          pool.connect(sender).swap(sendTokenAmount, "ETH")
+                      ).to.be.revertedWith("ERC20: transfer amount exceeds balance")
+                  })
+
+                  it("reverts if pool does not have enough receive tokens", async function () {
+                      // fund sender with WETH
+                      await fundAddress(sender.address, utils.formatEther(sendTokenAmount), "0")
+                      // approve Pool contract to spend sender's WETH
+                      await weth.connect(sender).approve(pool.address, sendTokenAmount)
+                      await expect(
+                          pool.connect(sender).swap(sendTokenAmount, "ETH")
+                      ).to.be.revertedWith("Pool__ReceiveBalanceZero()")
+                  })
+
+                  it("reverts if pool does not have enough allowance", async function () {
+                      // fund pool with tokens
+                      await fundAddress(pool.address, "10", "16000") // 10 WETH, 16_000 USDC
+                      // fund sender with WETH
+                      await fundAddress(sender.address, utils.formatEther(sendTokenAmount), "0")
+                      // do not approve Pool contract to spend sender's WETH
+                      await expect(
+                          pool.connect(sender).swap(sendTokenAmount, "ETH")
+                      ).to.be.revertedWith("ERC20: insufficient allowance")
+                  })
+              })
           })
 
           describe("convertTokenAmount", function () {
@@ -75,7 +143,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
           /* Internal functions */
 
           // Internal function: to test, change to public and remove 'skip'
-          describe("_calculateCurrentSwapPrice", function () {
+          describe.skip("_calculateCurrentSwapPrice", function () {
               it("returns the correct amount", async function () {
                   const sendAmount = ethers.utils.parseEther("2")
                   const sendBalance = ethers.utils.parseEther("10")
@@ -100,7 +168,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
           })
 
           // Internal function: to test, change to public and remove 'skip'
-          describe("_getContractBalance", function () {
+          describe.skip("_getContractBalance", function () {
               it("returns the correct amount of WETH", async function () {
                   await fundAddress(pool.address, "10", "0")
                   const sendAddress = pool.getWethAddress()
@@ -119,7 +187,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
           })
 
           // Internal function: to test, change to public and remove 'skip'
-          describe("_requestApprovalFromSender", function () {
+          describe.skip("_requestApprovalFromSender", function () {
               it("gets approval from sender", async function () {
                   const sendTokenAmount = ethers.utils.parseEther("2")
                   await pool.requestApprovalFromSender(
@@ -133,7 +201,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
           })
 
           // Internal function: to test, change to public and remove 'skip'
-          describe("_receiveTokenFromSender", function () {
+          describe.skip("_receiveTokenFromSender", function () {
               let currentContractBalance, transferAmount, sendTokenAmount
 
               beforeEach(async function () {
@@ -161,7 +229,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
           })
 
           // Internal function: to test, change to public and remove 'skip'
-          describe("_sendTokenToSender", function () {
+          describe.skip("_sendTokenToSender", function () {
               let currentContractBalance, transferAmount, receiveTokenAmount
 
               beforeEach(async function () {
