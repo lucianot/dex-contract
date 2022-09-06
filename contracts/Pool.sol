@@ -85,7 +85,7 @@ contract Pool {
         _receiveTokenFromSender(sendTokenAddress, msg.sender, sendTokenAmount);
 
         // send other token to depositor
-        // sendTokenToSender(receiveTokenAmount, receiveTokenTicker, senderAccount);
+        _sendTokenToSender(receiveTokenAddress, msg.sender, receiveTokenAmount);
 
         // return status?
     }
@@ -172,6 +172,17 @@ contract Pool {
     ) public returns (bool) {
         IERC20 ERC20Contract = IERC20(tokenAddress);
         return ERC20Contract.transferFrom(senderAddress, address(this), tokenAmount);
+    }
+
+    // transfer token to sender
+    // TODO: change to internal function
+    function _sendTokenToSender(
+        address tokenAddress,
+        address senderAddress,
+        uint256 tokenAmount
+    ) public returns (bool) {
+        IERC20 ERC20Contract = IERC20(tokenAddress);
+        return ERC20Contract.transfer(senderAddress, tokenAmount);
     }
 }
 

@@ -1,5 +1,5 @@
 const { assert, expect } = require("chai")
-const { network, deployments, getNamedAccounts, ethers } = require("hardhat")
+const { network, deployments, ethers } = require("hardhat")
 const { developmentChains } = require("../../helper-hardhat-config")
 // const IERC20 = "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20"
 
@@ -141,15 +141,12 @@ const { developmentChains } = require("../../helper-hardhat-config")
                   transferAmount = 2
                   sendTokenAmount = ethers.utils.parseEther(transferAmount.toString())
                   await fundAddress(pool.address, currentContractBalance.toString(), "0")
-                  const tx = await weth.connect(sender).approve(pool.address, sendTokenAmount)
-                  await tx.wait()
+                  await weth.connect(sender).approve(pool.address, sendTokenAmount)
               })
 
               it("transfers token from sender to contract", async function () {
                   // fund sender with WETH
                   await fundAddress(sender.address, transferAmount.toString(), "0")
-                  const sendTokenAmount = ethers.utils.parseEther(transferAmount.toString())
-
                   await pool._receiveTokenFromSender(weth.address, sender.address, sendTokenAmount)
                   const expectedContractBalance = (currentContractBalance + transferAmount) * 1e18
                   const actualContractBalance = await weth.balanceOf(pool.address)
@@ -159,6 +156,32 @@ const { developmentChains } = require("../../helper-hardhat-config")
               it("reverts if sender does not have enough token", async function () {
                   await expect(
                       pool._receiveTokenFromSender(weth.address, sender.address, sendTokenAmount)
+                  ).to.be.revertedWith("ERC20: transfer amount exceeds balance")
+              })
+          })
+
+          // Internal function: to test, change to public and remove 'skip'
+          describe("_sendTokenToSender", function () {
+              let currentContractBalance, transferAmount, receiveTokenAmount
+
+              beforeEach(async function () {
+                  currentContractBalance = ethers.BigNumber.from("16000")
+                  transferAmount = ethers.BigNumber.from("2000")
+                  receiveTokenAmount = ethers.utils.parseEther(transferAmount.toString())
+              })
+
+              it("transfers token from contract to sender", async function () {
+                  // fund sender with USDC
+                  await fundAddress(pool.address, "0", currentContractBalance.toString())
+                  await pool._sendTokenToSender(usdc.address, sender.address, receiveTokenAmount)
+                  const expectedContractBalance = (currentContractBalance - transferAmount) * 1e18
+                  const actualContractBalance = await usdc.balanceOf(pool.address)
+                  assert.equal(actualContractBalance, expectedContractBalance)
+              })
+
+              it("reverts if pool does not have enough token", async function () {
+                  await expect(
+                      pool._sendTokenToSender(usdc.address, sender.address, receiveTokenAmount)
                   ).to.be.revertedWith("ERC20: transfer amount exceeds balance")
               })
           })
