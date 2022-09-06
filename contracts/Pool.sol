@@ -157,7 +157,7 @@ contract Pool {
         address tokenAddress,
         uint256 tokenAmount,
         address senderAccount
-    ) private returns (bool) {
+    ) internal returns (bool) {
         IERC20 ERC20Contract = IERC20(tokenAddress);
         return ERC20Contract.approve(senderAccount, tokenAmount);
     }
@@ -168,7 +168,7 @@ contract Pool {
         address tokenAddress,
         address senderAddress,
         uint256 tokenAmount
-    ) private returns (bool) {
+    ) internal returns (bool) {
         IERC20 ERC20Contract = IERC20(tokenAddress);
         return ERC20Contract.transferFrom(senderAddress, address(this), tokenAmount);
     }
@@ -179,10 +179,8 @@ contract Pool {
         address tokenAddress,
         address senderAddress,
         uint256 tokenAmount
-    ) private returns (bool) {
+    ) internal returns (bool) {
         IERC20 ERC20Contract = IERC20(tokenAddress);
         return ERC20Contract.transfer(senderAddress, tokenAmount);
     }
 }
-
-// contract lpToken {}
