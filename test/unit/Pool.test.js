@@ -40,20 +40,26 @@ const { developmentChains } = require("../../helper-hardhat-config")
                       await fundAddress(sender.address, utils.formatEther(sendTokenAmount), "0")
                       // approve Pool contract to spend sender's WETH
                       await weth.connect(sender).approve(pool.address, sendTokenAmount)
-                      // swap WETH for USDC
-                      await pool.connect(sender).swap(sendTokenAmount, "ETH")
                   })
 
                   it("transfers the correct amount of send tokens to pool", async function () {
+                      await pool.connect(sender).swap(sendTokenAmount, "ETH")
                       const actualBalance = await weth.balanceOf(pool.address)
                       const expectedBalance = utils.parseEther("12")
                       assert.equal(actualBalance.toString(), expectedBalance.toString())
                   })
 
                   it("transfers the correct amount of receive tokens to sender", async function () {
+                      await pool.connect(sender).swap(sendTokenAmount, "ETH")
                       const actualBalance = await usdc.balanceOf(sender.address)
                       const expectedBalance = utils.parseEther("2666.666666666666666666")
                       assert.equal(actualBalance.toString(), expectedBalance.toString())
+                  })
+
+                  it("emits event", async function () {
+                      await expect(pool.connect(sender).swap(sendTokenAmount, "ETH"))
+                          .to.emit(pool, "SwapCompleted")
+                          .withArgs(utils.parseEther("2666.666666666666666666"))
                   })
               })
 

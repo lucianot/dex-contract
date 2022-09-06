@@ -3,6 +3,9 @@ pragma solidity ^0.8.7;
 
 import "./interfaces/IERC20.sol";
 
+error Pool__ReceiveBalanceZero();
+error Pool__TokenNotFound();
+
 /**
  * @title Pool
  * @author Luciano Tavares
@@ -18,8 +21,7 @@ contract Pool {
     uint256 private s_constant;
 
     /* Events */
-    error Pool__ReceiveBalanceZero();
-    error Pool__TokenNotFound();
+    event SwapCompleted(uint256 indexed receivedTokenAmount);
 
     /* Modifiers */
 
@@ -81,11 +83,10 @@ contract Pool {
         // receive tokens from sender
         _receiveTokenFromSender(sendTokenAddress, msg.sender, sendTokenAmount);
 
-        // send other token to depositor
+        // send other token to sender
         _sendTokenToSender(receiveTokenAddress, msg.sender, receiveTokenAmount);
 
-        // TODO: emit event
-
+        emit SwapCompleted(receiveTokenAmount);
         return true;
     }
 
@@ -130,7 +131,6 @@ contract Pool {
     /* Internal Functions */
 
     // formula for converting tokens
-    // TODO: change to internal function
     function _calculateCurrentSwapPrice(
         uint256 sendTokenAmount,
         uint256 sendTokenBalance,
@@ -145,14 +145,12 @@ contract Pool {
     }
 
     // get the token balance for the contract
-    // TODO: change to internal function
     function _getContractBalance(address tokenAddress) internal view returns (uint256) {
         IERC20 ERC20Contract = IERC20(tokenAddress);
         return ERC20Contract.balanceOf(address(this));
     }
 
     // request approval from sender
-    // TODO: change to internal function
     function requestApprovalFromSender(
         address tokenAddress,
         uint256 tokenAmount,
@@ -163,7 +161,6 @@ contract Pool {
     }
 
     // transfer token from sender
-    // TODO: change to internal function
     function _receiveTokenFromSender(
         address tokenAddress,
         address senderAddress,
@@ -174,7 +171,6 @@ contract Pool {
     }
 
     // transfer token to sender
-    // TODO: change to internal function
     function _sendTokenToSender(
         address tokenAddress,
         address senderAddress,
