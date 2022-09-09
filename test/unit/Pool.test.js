@@ -6,7 +6,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
 !developmentChains.includes(network.name)
     ? describe.skip
     : describe("Pool", function () {
-          let pool, weth, usdc, deployer, sender
+          let pool, weth, usdc, deployer, sender, mockV3Aggregator
 
           async function fundAddress(toAddress, wethAmount, usdcAmount) {
               // fund Pool contract with WETH
@@ -25,6 +25,9 @@ const { developmentChains } = require("../../helper-hardhat-config")
               // deploy tokens
               weth = await ethers.getContract("WethToken", deployer)
               usdc = await ethers.getContract("UsdcToken", deployer)
+
+              // deploy Chainlink mocks
+              mockV3Aggregator = await ethers.getContract("MockV3Aggregator", deployer)
           })
 
           // Swap
@@ -174,6 +177,16 @@ const { developmentChains } = require("../../helper-hardhat-config")
           })
 
           // Internal function: to test, change to public and remove 'skip'
+          describe("_getLatestPrice", function () {
+              it("returns the current price of pair", async function () {
+                  const currentPrice = utils.parseEther("1600")
+                  await mockV3Aggregator.updateAnswer(currentPrice)
+                  const actual = await pool._getLatestPrice()
+                  assert.equal(actual.toString(), currentPrice.toString())
+              })
+          })
+
+          // Internal function: to test, change to public and remove 'skip'
           describe.skip("_getContractBalance", function () {
               it("returns the correct amount of WETH", async function () {
                   await fundAddress(pool.address, "10", "0")
@@ -196,7 +209,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
           describe.skip("_requestApprovalFromSender", function () {
               it("gets approval from sender", async function () {
                   const sendTokenAmount = utils.parseEther("2")
-                  await pool.requestApprovalFromSender(
+                  await pool._requestApprovalFromSender(
                       weth.address,
                       sendTokenAmount,
                       sender.address
@@ -255,6 +268,29 @@ const { developmentChains } = require("../../helper-hardhat-config")
                   await expect(
                       pool._sendTokenToSender(usdc.address, sender.address, transferAmount)
                   ).to.be.revertedWith("ERC20: transfer amount exceeds balance")
+              })
+          })
+
+          // Internal function: to test, change to public and remove 'skip'
+          describe.skip("_getTokenAddresses", function () {
+              it("returns the correct addresses", async function () {
+                  const result = await pool._getTokenAddresses("ETH")
+                  const { 0: sendAddress, 1: receiveAddress } = result
+                  assert.equal(sendAddress, weth.address)
+                  assert.equal(receiveAddress, usdc.address)
+              })
+
+              it("returns the correct addresses", async function () {
+                  const result = await pool._getTokenAddresses("USDC")
+                  const { 0: sendAddress, 1: receiveAddress } = result
+                  assert.equal(sendAddress, usdc.address)
+                  assert.equal(receiveAddress, weth.address)
+              })
+
+              it("reverts if ticker is invalid", async function () {
+                  await expect(pool._getTokenAddresses("XYZ")).to.be.revertedWith(
+                      "Pool__InvalidTicker"
+                  )
               })
           })
       })

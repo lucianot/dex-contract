@@ -2,9 +2,10 @@
 pragma solidity ^0.8.7;
 
 import "./interfaces/IERC20.sol";
+import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 error Pool__ReceiveBalanceZero();
-error Pool__TokenNotFound();
+error Pool__InvalidTicker();
 
 /**
  * @title Pool
@@ -14,8 +15,9 @@ contract Pool {
     /* Type Declarations */
 
     /* State Variables */
-    address private immutable i_wethAddress;
-    address private immutable i_usdcAddress;
+    address internal immutable i_wethAddress;
+    address internal immutable i_usdcAddress;
+    AggregatorV3Interface internal immutable i_priceFeed;
 
     address payable[] private s_providers;
     uint256 private s_constant;
@@ -26,9 +28,14 @@ contract Pool {
     /* Modifiers */
 
     /* Constructor */
-    constructor(address wethAddress, address usdcAddress) {
-        i_wethAddress = wethAddress;
-        i_usdcAddress = usdcAddress;
+    constructor(
+        address _wethAddress,
+        address _usdcAddress,
+        address _priceFeed
+    ) {
+        i_wethAddress = _wethAddress;
+        i_usdcAddress = _usdcAddress;
+        i_priceFeed = AggregatorV3Interface(_priceFeed);
     }
 
     /* Receive function (if exists) */
@@ -41,12 +48,21 @@ contract Pool {
         public
         payable
     {
+        address referenceTokenAddress;
+        address otherTokenAddress;
+
         // validate the reference token amount?
-        // calculate the equivalent amount of other token
-        // get authorization for ETH
-        // get authorization for USDC
+
+        // set the correct addresses for tokens
+        (referenceTokenAddress, otherTokenAddress) = _getTokenAddresses(referenceTokenTicker);
+
+        // calculate the equivalent amount of other token using oracle
+        // uint256 otherTokenAmount = _getOtherTokenAmount(referenceTokenAmount, referenceTokenTicker);
+
         // request tokens from depositor
-        // send liquidity tokens to depositor
+        // mint liquidity tokens to depositor
+        // update the constant
+        // emit event
         // return status?
     }
 
@@ -62,16 +78,8 @@ contract Pool {
         address sendTokenAddress;
         address receiveTokenAddress;
 
-        // validate the send token amount?
-
-        // set the correct addresses for the send and receive tokens
-        if (keccak256(abi.encodePacked(sendTokenTicker)) == keccak256(abi.encodePacked("ETH"))) {
-            sendTokenAddress = i_wethAddress;
-            receiveTokenAddress = i_usdcAddress;
-        } else {
-            sendTokenAddress = i_usdcAddress;
-            receiveTokenAddress = i_wethAddress;
-        }
+        // set the correct addresses for tokens
+        (sendTokenAddress, receiveTokenAddress) = _getTokenAddresses(sendTokenTicker);
 
         // calculate the equivalent amount of receive token
         uint256 receiveTokenAmount = convertTokenAmount(
@@ -130,7 +138,7 @@ contract Pool {
 
     /* Internal Functions */
 
-    // formula for converting tokens
+    // formula for converting tokens in pool
     function _calculateCurrentSwapPrice(
         uint256 sendTokenAmount,
         uint256 sendTokenBalance,
@@ -144,14 +152,28 @@ contract Pool {
         return ((sendTokenBalance + sendTokenAmount) * 1e18) / receiveTokenBalance;
     }
 
-    // get the token balance for the contract
+    /**
+     * @notice Returns how much the Pool contract owns of a given token
+     *
+     * @return current balance
+     */
     function _getContractBalance(address tokenAddress) internal view returns (uint256) {
         IERC20 ERC20Contract = IERC20(tokenAddress);
         return ERC20Contract.balanceOf(address(this));
     }
 
+    /**
+     * @notice Returns the latest price from oracle
+     *
+     * @return latest price
+     */
+    function _getLatestPrice() public view returns (int256) {
+        (, int256 price, , , ) = i_priceFeed.latestRoundData();
+        return price;
+    }
+
     // request approval from sender
-    function requestApprovalFromSender(
+    function _requestApprovalFromSender(
         address tokenAddress,
         uint256 tokenAmount,
         address senderAccount
@@ -178,5 +200,23 @@ contract Pool {
     ) internal returns (bool) {
         IERC20 ERC20Contract = IERC20(tokenAddress);
         return ERC20Contract.transfer(senderAddress, tokenAmount);
+    }
+
+    // get token addresses
+    function _getTokenAddresses(string memory sendTicker) public view returns (address, address) {
+        address sendTokenAddress;
+        address receiveTokenAddress;
+
+        if (keccak256(abi.encodePacked(sendTicker)) == keccak256(abi.encodePacked("ETH"))) {
+            sendTokenAddress = i_wethAddress;
+            receiveTokenAddress = i_usdcAddress;
+        } else if (keccak256(abi.encodePacked(sendTicker)) == keccak256(abi.encodePacked("USDC"))) {
+            sendTokenAddress = i_usdcAddress;
+            receiveTokenAddress = i_wethAddress;
+        } else {
+            revert Pool__InvalidTicker();
+        }
+
+        return (sendTokenAddress, receiveTokenAddress);
     }
 }

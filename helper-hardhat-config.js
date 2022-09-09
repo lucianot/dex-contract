@@ -15,6 +15,7 @@ const networkConfig = {
         fundAmount: "1000000000000000000",
         keepersUpdateInterval: "30",
         ethUsdPriceFeed: "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419",
+        UsdcEthPriceFeed: "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4",
     },
     42: {
         name: "kovan",
@@ -45,6 +46,7 @@ const networkConfig = {
         linkToken: "0x514910771af9ca656af840dff83e8264ecf986ca",
         fundAmount: "0",
         keepersUpdateInterval: "30",
+        UsdcEthPriceFeed: "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4",
     },
     5: {
         name: "goerli",
