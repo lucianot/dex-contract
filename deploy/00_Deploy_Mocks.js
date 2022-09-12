@@ -1,4 +1,4 @@
-const { getNamedAccounts, deployments, network } = require("hardhat")
+const { network } = require("hardhat")
 
 const DECIMALS = "18"
 const INITIAL_PRICE = "200000000000000000000"
@@ -10,7 +10,7 @@ const BASE_FEE = "100000000000000000"
 const GAS_PRICE_LINK = "1000000000" // 0.000000001 LINK per gas
 const INITIAL_SUPPLY = ethers.utils.parseEther("1000000000")
 
-module.exports = async ({ getNamedAccounts, deployments, getChainId }) => {
+module.exports = async ({ getNamedAccounts, deployments }) => {
     const { deploy, log } = deployments
     const { deployer } = await getNamedAccounts()
     const chainId = network.config.chainId

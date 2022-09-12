@@ -6,12 +6,14 @@ const {
 } = require("../helper-hardhat-config")
 const { verify } = require("../helper-functions")
 
+const INITIAL_SUPPLY = ethers.utils.parseEther("1000000000")
+
 module.exports = async ({ getNamedAccounts, deployments }) => {
     const { deploy, log } = deployments
     const { deployer } = await getNamedAccounts()
     const chainId = network.config.chainId
 
-    let UsdcEthPriceFeedAddress
+    let UsdcEthPriceFeedAddress, wethAddress, usdcAddress, lpTokenAddress, waitBlockConfirmations
 
     if (chainId == 31337) {
         const UsdcEthAggregator = await deployments.get("MockV3Aggregator")
@@ -20,20 +22,20 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
         UsdcEthPriceFeedAddress = networkConfig[chainId]["UsdcEthPriceFeed"]
     }
 
-    const wethAddress = developmentChains.includes(network.name)
-        ? (await deployments.get("WethToken")).address
-        : networkConfig[chainId]["wethToken"]
-
-    const usdcAddress = developmentChains.includes(network.name)
-        ? (await deployments.get("UsdcToken")).address
-        : networkConfig[chainId]["usdcToken"]
-
-    const waitBlockConfirmations = developmentChains.includes(network.name)
-        ? 1
-        : VERIFICATION_BLOCK_CONFIRMATIONS
+    if (developmentChains.includes(network.name)) {
+        wethAddress = (await deployments.get("WethToken")).address
+        usdcAddress = (await deployments.get("UsdcToken")).address
+        lpTokenAddress = (await deployments.get("LiquidityPoolToken")).address
+        waitBlockConfirmations = 1
+    } else {
+        wethAddress = networkConfig[chainId]["WethToken"]
+        usdcAddress = networkConfig[chainId]["UsdcToken"]
+        lpTokenAddress = (await deployments.get("LiquidityPoolToken")).address
+        waitBlockConfirmations = VERIFICATION_BLOCK_CONFIRMATIONS
+    }
 
     log("----------------------------------------------------")
-    const arguments = [wethAddress, usdcAddress, UsdcEthPriceFeedAddress]
+    const arguments = [wethAddress, usdcAddress, lpTokenAddress, UsdcEthPriceFeedAddress]
     const pool = await deploy("Pool", {
         from: deployer,
         args: arguments,
@@ -46,6 +48,12 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
         log("Verifying...")
         await verify(pool.address, arguments)
     }
+
+    // Transfer liquidity pool token to the pool
+    log("Transferring liquidity pool tokens to pool contract...")
+    const lpToken = await ethers.getContract("LiquidityPoolToken", deployer)
+    const supply = await lpToken.balanceOf(deployer)
+    await lpToken.transfer(pool.address, supply)
 }
 
 module.exports.tags = ["all", "pool", "main"]

@@ -2,7 +2,9 @@
 pragma solidity ^0.8.7;
 
 import "./interfaces/IERC20.sol";
+import "./LiquidityPoolToken.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 error Pool__ReceiveBalanceZero();
 error Pool__InvalidTicker();
@@ -11,19 +13,22 @@ error Pool__InvalidTicker();
  * @title Pool
  * @author Luciano Tavares
  */
-contract Pool {
+contract Pool is Ownable {
     /* Type Declarations */
 
     /* State Variables */
     address internal immutable i_wethAddress;
     address internal immutable i_usdcAddress;
+    address internal immutable i_lpTokenAddress;
     AggregatorV3Interface internal immutable i_priceFeed;
+    uint256 internal s_priceConstant;
 
-    address payable[] private s_providers;
-    uint256 private s_constant;
+    // address payable[] private s_providers;
+    // uint256 private s_constant;
 
     /* Events */
     event SwapCompleted(uint256 indexed receivedTokenAmount);
+    event DepositCompleted();
 
     /* Modifiers */
 
@@ -31,10 +36,12 @@ contract Pool {
     constructor(
         address _wethAddress,
         address _usdcAddress,
+        address _lpTokenAddress,
         address _priceFeed
     ) {
         i_wethAddress = _wethAddress;
         i_usdcAddress = _usdcAddress;
+        i_lpTokenAddress = _lpTokenAddress;
         i_priceFeed = AggregatorV3Interface(_priceFeed);
     }
 
@@ -44,45 +51,58 @@ contract Pool {
     /* Functions */
 
     // deposit into liquidity pool
-    function deposit(uint256 referenceTokenAmount, string memory referenceTokenTicker)
-        public
-        payable
-    {
-        address referenceTokenAddress;
-        address otherTokenAddress;
+    function deposit(uint256 tokenAmount, string memory tokenTicker) public returns (bool) {
+        uint256 usdcAmount = 0;
+        uint256 wethAmount = 0;
+        uint256 wethInitialBalance = _getContractBalance(i_wethAddress);
+        uint256 usdcInitialBalance = _getContractBalance(i_usdcAddress);
+        int256 usdcEthOraclePrice = _getLatestPrice();
 
-        // validate the reference token amount?
+        // set token amounts based on oracle price
+        // TODO: extract to function
+        if (keccak256(abi.encodePacked(tokenTicker)) == keccak256(abi.encodePacked("ETH"))) {
+            wethAmount = tokenAmount;
+            usdcAmount = (wethAmount * 1e18) / uint256(usdcEthOraclePrice);
+        } else if (
+            keccak256(abi.encodePacked(tokenTicker)) == keccak256(abi.encodePacked("USDC"))
+        ) {
+            usdcAmount = tokenAmount;
+            wethAmount = (usdcAmount * uint256(usdcEthOraclePrice)) / 1e18;
+        } else {
+            revert Pool__InvalidTicker();
+        }
 
-        // set the correct addresses for tokens
-        (referenceTokenAddress, otherTokenAddress) = _getTokenAddresses(referenceTokenTicker);
+        // receive tokens from depositor
+        _receiveTokenFromSender(i_wethAddress, msg.sender, wethAmount);
+        _receiveTokenFromSender(i_usdcAddress, msg.sender, usdcAmount);
 
-        // calculate the equivalent amount of other token using oracle
-        // uint256 otherTokenAmount = _getOtherTokenAmount(referenceTokenAmount, referenceTokenTicker);
-
-        // request tokens from depositor
         // mint liquidity tokens to depositor
+        _mintLiquidityPoolTokens(usdcAmount);
+
         // update the constant
+        s_priceConstant =
+            ((wethInitialBalance + wethAmount) * (usdcInitialBalance + usdcAmount)) /
+            1e18;
+
         // emit event
-        // return status?
+        emit DepositCompleted();
+        return true;
     }
 
     // withdraw from liquidity pool
-    function withdraw() public payable {}
+    function withdraw() public {}
 
     // swap tokens
-    function swap(uint256 sendTokenAmount, string memory sendTokenTicker)
-        public
-        payable
-        returns (bool)
-    {
+    function swap(uint256 sendTokenAmount, string memory sendTokenTicker) public returns (bool) {
         address sendTokenAddress;
         address receiveTokenAddress;
+        uint256 receiveTokenAmount;
 
         // set the correct addresses for tokens
         (sendTokenAddress, receiveTokenAddress) = _getTokenAddresses(sendTokenTicker);
 
         // calculate the equivalent amount of receive token
-        uint256 receiveTokenAmount = convertTokenAmount(
+        receiveTokenAmount = convertTokenAmount(
             sendTokenAmount,
             sendTokenAddress,
             receiveTokenAddress
@@ -108,15 +128,19 @@ contract Pool {
         uint256 sendTokenBalance = _getContractBalance(sendTokenAddress);
         uint256 receiveTokenBalance = _getContractBalance(receiveTokenAddress);
 
-        // formula for converting tokens
-        uint256 currentSwapPrice = _calculateCurrentSwapPrice(
-            sendTokenAmount,
-            sendTokenBalance,
-            receiveTokenBalance
-        );
+        // revert if there are no tokens left to send
+        if (receiveTokenBalance == 0) {
+            revert Pool__ReceiveBalanceZero();
+        }
 
-        // calculate the equivalent amount of the token to be received
-        return (sendTokenAmount * 1e18) / currentSwapPrice;
+        // calculate the equivalent amount of receive token
+        return
+            _calculateSwapAmount(
+                sendTokenAmount,
+                sendTokenBalance,
+                receiveTokenBalance,
+                s_priceConstant
+            );
     }
 
     // view your pool balance
@@ -124,9 +148,9 @@ contract Pool {
         return 0;
     }
 
-    function getProvider(uint256 index) public view returns (address) {
-        return s_providers[index];
-    }
+    // function getProvider(uint256 index) public view returns (address) {
+    //     return s_providers[index];
+    // }
 
     function getWethAddress() public view returns (address) {
         return i_wethAddress;
@@ -136,73 +160,80 @@ contract Pool {
         return i_usdcAddress;
     }
 
-    /* Internal Functions */
-
-    // formula for converting tokens in pool
-    function _calculateCurrentSwapPrice(
-        uint256 sendTokenAmount,
-        uint256 sendTokenBalance,
-        uint256 receiveTokenBalance
-    ) internal pure returns (uint256) {
-        // revert if receive token balance is 0
-        if (receiveTokenBalance == 0) {
-            revert Pool__ReceiveBalanceZero();
-        }
-
-        return ((sendTokenBalance + sendTokenAmount) * 1e18) / receiveTokenBalance;
+    function getPriceConstant() public view returns (uint256) {
+        return s_priceConstant;
     }
 
-    /**
-     * @notice Returns how much the Pool contract owns of a given token
-     *
-     * @return current balance
-     */
-    function _getContractBalance(address tokenAddress) internal view returns (uint256) {
+    /* Internal Functions */
+
+    // Pricing formula for swapping tokens in pool
+    function _calculateSwapAmount(
+        uint256 sendTokenAmount,
+        uint256 sendTokenBalance,
+        uint256 receiveTokenBalance,
+        uint256 k
+    ) public pure returns (uint256) {
+        int256 receiveTokenAmount = (int256(k * 1e18) /
+            int256(sendTokenBalance + sendTokenAmount)) - int256(receiveTokenBalance);
+
+        return uint256(receiveTokenAmount * -1);
+    }
+
+    // Returns how much the Pool contract owns of a given token
+    function _getContractBalance(address tokenAddress) public view returns (uint256) {
         IERC20 ERC20Contract = IERC20(tokenAddress);
         return ERC20Contract.balanceOf(address(this));
     }
 
-    /**
-     * @notice Returns the latest price from oracle
-     *
-     * @return latest price
-     */
+    // Mint liquidity tokens to depositor
+    // Ideal strategy would be to mint tokens whenever deposits are added to pool
+    // For now, we will mint all tokens at once when the pool is created
+    function _mintLiquidityPoolTokens(uint256 usdcAmount) public returns (bool) {
+        uint256 liquidityTokenAmount = usdcAmount * 2;
+
+        // TODO: should token be instantiated in constructor?
+        LiquidityPoolToken lpToken = LiquidityPoolToken(i_lpTokenAddress);
+        lpToken.transfer(msg.sender, liquidityTokenAmount);
+        return true;
+    }
+
+    // Returns the latest price from oracle
     function _getLatestPrice() public view returns (int256) {
         (, int256 price, , , ) = i_priceFeed.latestRoundData();
         return price;
     }
 
-    // request approval from sender
+    // Requests approval from sender
     function _requestApprovalFromSender(
         address tokenAddress,
         uint256 tokenAmount,
         address senderAccount
-    ) internal returns (bool) {
+    ) public returns (bool) {
         IERC20 ERC20Contract = IERC20(tokenAddress);
         return ERC20Contract.approve(senderAccount, tokenAmount);
     }
 
-    // transfer token from sender
+    // Transfers tokens from sender to pool
     function _receiveTokenFromSender(
         address tokenAddress,
         address senderAddress,
         uint256 tokenAmount
-    ) internal returns (bool) {
+    ) public returns (bool) {
         IERC20 ERC20Contract = IERC20(tokenAddress);
         return ERC20Contract.transferFrom(senderAddress, address(this), tokenAmount);
     }
 
-    // transfer token to sender
+    // Transfers token to sender
     function _sendTokenToSender(
         address tokenAddress,
         address senderAddress,
         uint256 tokenAmount
-    ) internal returns (bool) {
+    ) public returns (bool) {
         IERC20 ERC20Contract = IERC20(tokenAddress);
         return ERC20Contract.transfer(senderAddress, tokenAmount);
     }
 
-    // get token addresses
+    // Gets token addresses
     function _getTokenAddresses(string memory sendTicker) public view returns (address, address) {
         address sendTokenAddress;
         address receiveTokenAddress;
@@ -218,5 +249,11 @@ contract Pool {
         }
 
         return (sendTokenAddress, receiveTokenAddress);
+    }
+
+    // Sets constant for pricing formula
+    // TODO: remove this function
+    function _setPriceConstant(uint256 value) public onlyOwner {
+        s_priceConstant = value;
     }
 }
