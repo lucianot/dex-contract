@@ -1,57 +1,34 @@
 const { assert, expect } = require("chai")
 const { network, deployments, ethers } = require("hardhat")
 const { utils } = require("ethers")
-const { developmentChains, getNamedAccounts } = require("../../helper-hardhat-config")
+const { developmentChains } = require("../../helper-hardhat-config")
 
 !developmentChains.includes(network.name)
     ? describe.skip
     : describe("Pool", function () {
           let pool, weth, usdc, deployer, sender, mockV3Aggregator, usdcEthLatestPrice
 
-          async function fundAddress(toAddress, wethAmount, usdcAmount) {
+          async function setupTransferTo(toAddress, wethAmount, usdcAmount) {
               // fund account with WETH
               await weth.transfer(toAddress, utils.parseEther(wethAmount))
               // fund account with USDC
               await usdc.transfer(toAddress, utils.parseEther(usdcAmount))
           }
 
-          async function prepareForDeposit(wethAmount, usdcAmount) {
-              // deposit into Pool 10 WETH, 20_000 USDC
-              await depositFromYieldFarmer(utils.parseEther("10"), utils.parseEther("20000"))
-              // fund sender with tokens
-              await fundAddress(
-                  sender.address,
-                  utils.formatEther(wethAmount),
-                  utils.formatEther(usdcAmount)
-              )
-              // approve Pool contract to spend sender's WETH
-              await weth.connect(sender).approve(pool.address, wethAmount)
-              // approve Pool contract to spend sender's USDC
-              await usdc.connect(sender).approve(pool.address, usdcAmount)
-          }
-
-          async function depositFromYieldFarmer(wethAmount, usdcAmount) {
+          async function setupDepositFrom(depositor, wethAmount, usdcAmount, isDeposit) {
+              const wethAmountInWei = utils.parseEther(wethAmount)
+              const usdcAmountInWei = utils.parseEther(usdcAmount)
               // fund farmer with tokens
-              await fundAddress(
-                  yieldFarmer.address,
-                  utils.formatEther(wethAmount),
-                  utils.formatEther(usdcAmount)
-              )
+              await setupTransferTo(depositor.address, wethAmount, usdcAmount)
               // approve Pool contract to spend sender's WETH
-              await weth.connect(yieldFarmer).approve(pool.address, wethAmount)
+              await weth.connect(depositor).approve(pool.address, wethAmountInWei)
               // approve Pool contract to spend sender's USDC
-              await usdc.connect(yieldFarmer).approve(pool.address, usdcAmount)
-              // deposit from yieldFarmer
-              await pool.connect(yieldFarmer).deposit(wethAmount, "ETH")
-          }
-
-          async function getPoolBalances() {
-              const wethBalance = await weth.balanceOf(pool.address)
-              const usdcBalance = await usdc.balanceOf(pool.address)
-              const lpTokenSupply = await pool.getLpTokenSupply()
-              console.log("WETH balance: ", utils.formatEther(wethBalance))
-              console.log("USDC balance: ", utils.formatEther(usdcBalance))
-              console.log("LP token supply: ", utils.formatEther(lpTokenSupply))
+              await usdc.connect(depositor).approve(pool.address, usdcAmountInWei)
+              // deposit if requested
+              if (isDeposit) {
+                  await pool.connect(depositor).deposit(wethAmountInWei, "ETH")
+                  // approve lpTokens?
+              }
           }
 
           beforeEach(async function () {
@@ -77,13 +54,10 @@ const { developmentChains, getNamedAccounts } = require("../../helper-hardhat-co
 
               describe("valid", function () {
                   beforeEach(async function () {
-                      // deposit into Pool and set constant
-                      await depositFromYieldFarmer(
-                          utils.parseEther("10"), // 10 WETH
-                          utils.parseEther("20000") // 20_000 USDC
-                      )
+                      // deposit into Pool
+                      await setupDepositFrom(yieldFarmer, "10", "20000", true)
                       // fund sender with WETH
-                      await fundAddress(sender.address, utils.formatEther(sendTokenAmount), "0")
+                      await setupTransferTo(sender.address, utils.formatEther(sendTokenAmount), "0")
                       // approve Pool contract to spend sender's WETH
                       await weth.connect(sender).approve(pool.address, sendTokenAmount)
                   })
@@ -111,7 +85,7 @@ const { developmentChains, getNamedAccounts } = require("../../helper-hardhat-co
 
               describe("invalid", function () {
                   it("reverts if sender does not have enough send tokens", async function () {
-                      await fundAddress(pool.address, "0", "1")
+                      await setupTransferTo(pool.address, "0", "1")
                       // approve Pool contract to spend sender's WETH
                       await weth.connect(sender).approve(pool.address, sendTokenAmount)
                       await expect(
@@ -121,7 +95,7 @@ const { developmentChains, getNamedAccounts } = require("../../helper-hardhat-co
 
                   it("reverts if pool does not have enough receive tokens", async function () {
                       // fund sender with WETH
-                      await fundAddress(
+                      await setupTransferTo(
                           sender.getAddress(),
                           utils.formatEther(sendTokenAmount),
                           "0"
@@ -135,9 +109,9 @@ const { developmentChains, getNamedAccounts } = require("../../helper-hardhat-co
 
                   it("reverts if pool does not have enough allowance", async function () {
                       // fund pool with tokens
-                      await fundAddress(pool.address, "10", "16000") // 10 WETH, 16_000 USDC
+                      await setupTransferTo(pool.address, "10", "16000") // 10 WETH, 16_000 USDC
                       // fund sender with WETH
-                      await fundAddress(sender.address, utils.formatEther(sendTokenAmount), "0")
+                      await setupTransferTo(sender.address, utils.formatEther(sendTokenAmount), "0")
                       // do not approve Pool contract to spend sender's WETH
                       await expect(
                           pool.connect(sender).swap(sendTokenAmount, "ETH")
@@ -154,7 +128,15 @@ const { developmentChains, getNamedAccounts } = require("../../helper-hardhat-co
                   beforeEach(async function () {
                       wethAmount = utils.parseEther("2") // 2 WETH
                       usdcAmount = utils.parseEther("4000") // 4_000 USDC
-                      await prepareForDeposit(wethAmount, usdcAmount)
+                      // deposit into Pool 10 WETH, 20_000 USDC
+                      await setupDepositFrom(yieldFarmer, "10", "20000", true)
+                      // fund sender with tokens
+                      await setupDepositFrom(
+                          sender,
+                          utils.formatEther(wethAmount),
+                          utils.formatEther(usdcAmount),
+                          false
+                      )
                   })
 
                   // WETH
@@ -216,9 +198,9 @@ const { developmentChains, getNamedAccounts } = require("../../helper-hardhat-co
                       wethAmount = utils.parseEther("2") // 2 WETH
                       usdcAmount = utils.parseEther("4000") // 4_000 USDC
                       // fund pool with tokens
-                      await fundAddress(pool.address, "10", "16000") // 10 WETH, 16_000 USDC
+                      await setupTransferTo(pool.address, "10", "16000") // 10 WETH, 16_000 USDC
                       // fund sender with WETH
-                      await fundAddress(
+                      await setupTransferTo(
                           sender.address,
                           utils.formatEther(wethAmount),
                           utils.formatEther(usdcAmount)
@@ -251,10 +233,11 @@ const { developmentChains, getNamedAccounts } = require("../../helper-hardhat-co
                   beforeEach(async function () {
                       const wethAmount = utils.parseEther("2") // 2 WETH
                       const usdcAmount = utils.parseEther("4000") // 4_000 USDC
-                      await prepareForDeposit(wethAmount, usdcAmount)
-                      // make deposit into liquidity pool
-                      await pool.connect(sender).deposit(wethAmount, "ETH")
-                      // give pool allowance to burn lpTokens from depositor
+                      // deposit into Pool 10 WETH, 20_000 USDC
+                      await setupDepositFrom(yieldFarmer, "10", "20000", true)
+                      // fund sender with tokens
+                      await setupDepositFrom(sender, "2", "4000", true)
+                      // Approve pool to burn lpTokens
                       await lpToken.connect(sender).approve(pool.address, usdcAmount.mul(2))
                       percentOfDepositToWithdraw = utils.parseEther("0.6")
                   })
@@ -306,7 +289,7 @@ const { developmentChains, getNamedAccounts } = require("../../helper-hardhat-co
           // ConvertTokenAmount
           describe("convertTokenAmount", function () {
               it("returns the correct amount of USDC", async function () {
-                  await depositFromYieldFarmer(utils.parseEther("10"), utils.parseEther("20000"))
+                  await setupDepositFrom(yieldFarmer, "10", "20000", true)
                   const wethAmount = utils.parseEther("2")
                   const expected = utils.parseEther("3333.333333333333333334")
                   const actual = await pool.convertTokenAmount(
@@ -318,7 +301,7 @@ const { developmentChains, getNamedAccounts } = require("../../helper-hardhat-co
               })
 
               it("returns the correct amount of WETH", async function () {
-                  await depositFromYieldFarmer(utils.parseEther("10"), utils.parseEther("20000"))
+                  await setupDepositFrom(yieldFarmer, "10", "20000", true)
                   const usdcAmount = utils.parseEther("5000")
                   const expected = utils.parseEther("2")
                   const actual = await pool.convertTokenAmount(
@@ -360,7 +343,7 @@ const { developmentChains, getNamedAccounts } = require("../../helper-hardhat-co
           // Internal function: to test, change to public and remove 'skip'
           describe("_getPoolBalance", function () {
               it("returns the correct amount of WETH", async function () {
-                  await fundAddress(pool.address, "10", "0")
+                  await setupTransferTo(pool.address, "10", "0")
                   const sendAddress = pool.getWethAddress()
                   const expected = utils.parseEther("10")
                   const actual = await pool._getPoolBalance(sendAddress)
@@ -368,7 +351,7 @@ const { developmentChains, getNamedAccounts } = require("../../helper-hardhat-co
               })
 
               it("returns the correct amount of USDC", async function () {
-                  await fundAddress(pool.address, "0", "16000")
+                  await setupTransferTo(pool.address, "0", "16000")
                   const sendAddress = pool.getUsdcAddress()
                   const expected = utils.parseEther("16000")
                   const actual = await pool._getPoolBalance(sendAddress)
@@ -393,8 +376,15 @@ const { developmentChains, getNamedAccounts } = require("../../helper-hardhat-co
                   // Setup Pool balances
                   const wethAmount = utils.parseEther("2") // 2 WETH
                   const usdcAmount = utils.parseEther("4000") // 4_000 USDC
-                  await prepareForDeposit(wethAmount, usdcAmount)
-                  await pool.connect(sender).deposit(wethAmount, "ETH")
+                  // deposit into Pool 10 WETH, 20_000 USDC
+                  await setupDepositFrom(yieldFarmer, "10", "20000", true)
+                  // fund sender with tokens
+                  await setupDepositFrom(
+                      sender,
+                      utils.formatEther(wethAmount),
+                      utils.formatEther(usdcAmount),
+                      true
+                  )
                   // Approve pool to burn lpTokens
                   const lpTokenAmount = utils.parseEther("2000") // 2_000 lpTokens
                   await lpToken.connect(sender).approve(pool.address, usdcAmount.mul(2))
@@ -421,13 +411,17 @@ const { developmentChains, getNamedAccounts } = require("../../helper-hardhat-co
               beforeEach(async function () {
                   currentContractBalance = utils.parseEther("10")
                   transferAmount = utils.parseEther("2")
-                  await fundAddress(pool.address, utils.formatEther(currentContractBalance), "0")
+                  await setupTransferTo(
+                      pool.address,
+                      utils.formatEther(currentContractBalance),
+                      "0"
+                  )
                   await weth.connect(sender).approve(pool.address, transferAmount)
               })
 
               it("transfers token from sender to contract", async function () {
                   // fund sender with WETH
-                  await fundAddress(sender.address, utils.formatEther(transferAmount), "0")
+                  await setupTransferTo(sender.address, utils.formatEther(transferAmount), "0")
                   await pool._receiveTokenFromSender(weth.address, sender.address, transferAmount)
                   const expectedContractBalance = currentContractBalance.add(transferAmount)
                   const actualContractBalance = await weth.balanceOf(pool.address)
@@ -452,7 +446,11 @@ const { developmentChains, getNamedAccounts } = require("../../helper-hardhat-co
 
               it("transfers token from contract to sender", async function () {
                   // fund sender with USDC
-                  await fundAddress(pool.address, "0", utils.formatEther(currentContractBalance))
+                  await setupTransferTo(
+                      pool.address,
+                      "0",
+                      utils.formatEther(currentContractBalance)
+                  )
                   await pool._sendTokenToSender(usdc.address, sender.address, transferAmount)
                   const expectedContractBalance = currentContractBalance.sub(transferAmount)
                   const actualContractBalance = await usdc.balanceOf(pool.address)
