@@ -290,10 +290,4 @@ contract Pool is Ownable {
 
         return (sendTokenAddress, receiveTokenAddress);
     }
-
-    // Sets constant for pricing formula
-    // TODO: remove this function
-    function _setPriceConstant(uint256 value) public onlyOwner {
-        s_priceConstant = value;
-    }
 }
