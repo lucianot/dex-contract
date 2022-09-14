@@ -8,6 +8,8 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 error Pool__ReceiveBalanceZero();
 error Pool__InvalidTicker();
+error Pool__InsufficientAllowance();
+error Pool__InvalidWithdrawPercentage();
 
 /**
  * @title Pool
@@ -19,9 +21,10 @@ contract Pool is Ownable {
     /* State Variables */
     address internal immutable i_wethAddress;
     address internal immutable i_usdcAddress;
-    address internal immutable i_lpTokenAddress;
+    LiquidityPoolToken internal immutable i_lpToken;
     AggregatorV3Interface internal immutable i_priceFeed;
     uint256 internal s_priceConstant;
+    uint256 internal s_lpTokenSupply;
 
     // address payable[] private s_providers;
     // uint256 private s_constant;
@@ -29,6 +32,7 @@ contract Pool is Ownable {
     /* Events */
     event SwapCompleted(uint256 indexed receivedTokenAmount);
     event DepositCompleted();
+    event WithdrawCompleted();
 
     /* Modifiers */
 
@@ -41,8 +45,9 @@ contract Pool is Ownable {
     ) {
         i_wethAddress = _wethAddress;
         i_usdcAddress = _usdcAddress;
-        i_lpTokenAddress = _lpTokenAddress;
+        i_lpToken = LiquidityPoolToken(_lpTokenAddress);
         i_priceFeed = AggregatorV3Interface(_priceFeed);
+        s_lpTokenSupply = 0;
     }
 
     /* Receive function (if exists) */
@@ -54,8 +59,8 @@ contract Pool is Ownable {
     function deposit(uint256 tokenAmount, string memory tokenTicker) public returns (bool) {
         uint256 usdcAmount = 0;
         uint256 wethAmount = 0;
-        uint256 wethInitialBalance = _getContractBalance(i_wethAddress);
-        uint256 usdcInitialBalance = _getContractBalance(i_usdcAddress);
+        uint256 wethInitialBalance = _getPoolBalance(i_wethAddress);
+        uint256 usdcInitialBalance = _getPoolBalance(i_usdcAddress);
         int256 usdcEthOraclePrice = _getLatestPrice();
 
         // set token amounts based on oracle price
@@ -90,7 +95,42 @@ contract Pool is Ownable {
     }
 
     // withdraw from liquidity pool
-    function withdraw() public {}
+    function withdraw(uint256 percentOfDepositToWithdraw) public returns (bool) {
+        // revert if percent is greater than 100
+        if (percentOfDepositToWithdraw > (100 * 1e18)) {
+            revert Pool__InvalidWithdrawPercentage();
+        }
+
+        // get depositor's lpToken balance
+        uint256 depositorLpTokenBalance = i_lpToken.balanceOf(msg.sender);
+        uint256 lpTokenAmountToBurn = (depositorLpTokenBalance * percentOfDepositToWithdraw) / 1e18;
+
+        // calculate depositor's withdrawal as percentage of total pool
+        uint256 percentOfPoolToWithdraw = (lpTokenAmountToBurn * 1e18) / s_lpTokenSupply;
+
+        // calculate amount of tokens to withdraw
+        uint256 wethInitialBalance = _getPoolBalance(i_wethAddress);
+        uint256 usdcInitialBalance = _getPoolBalance(i_usdcAddress);
+        uint256 wethAmount = (wethInitialBalance * percentOfPoolToWithdraw) / 1e18;
+        uint256 usdcAmount = (usdcInitialBalance * percentOfPoolToWithdraw) / 1e18;
+
+        // burn liquidity tokens from depositor
+        // TODO: find a better way to give pool permission to burn tokens
+        _burnLiquidityPoolTokens(lpTokenAmountToBurn);
+
+        // send tokens to depositor
+        _sendTokenToSender(i_wethAddress, msg.sender, wethAmount);
+        _sendTokenToSender(i_usdcAddress, msg.sender, usdcAmount);
+
+        // update the constant
+        s_priceConstant =
+            ((wethInitialBalance - wethAmount) * (usdcInitialBalance - usdcAmount)) /
+            1e18;
+
+        // emit event
+        emit WithdrawCompleted();
+        return true;
+    }
 
     // swap tokens
     function swap(uint256 sendTokenAmount, string memory sendTokenTicker) public returns (bool) {
@@ -125,8 +165,8 @@ contract Pool is Ownable {
         address receiveTokenAddress
     ) public view returns (uint256) {
         // get current contract balance for each token
-        uint256 sendTokenBalance = _getContractBalance(sendTokenAddress);
-        uint256 receiveTokenBalance = _getContractBalance(receiveTokenAddress);
+        uint256 sendTokenBalance = _getPoolBalance(sendTokenAddress);
+        uint256 receiveTokenBalance = _getPoolBalance(receiveTokenAddress);
 
         // revert if there are no tokens left to send
         if (receiveTokenBalance == 0) {
@@ -143,10 +183,8 @@ contract Pool is Ownable {
             );
     }
 
-    // view your pool balance
-    function getUserAccountData() public pure returns (uint256) {
-        return 0;
-    }
+    // get sender's balances
+    function getUserAccountData() public pure returns (uint256) {}
 
     // function getProvider(uint256 index) public view returns (address) {
     //     return s_providers[index];
@@ -162,6 +200,10 @@ contract Pool is Ownable {
 
     function getPriceConstant() public view returns (uint256) {
         return s_priceConstant;
+    }
+
+    function getLpTokenSupply() public view returns (uint256) {
+        return s_lpTokenSupply;
     }
 
     /* Internal Functions */
@@ -180,7 +222,7 @@ contract Pool is Ownable {
     }
 
     // Returns how much the Pool contract owns of a given token
-    function _getContractBalance(address tokenAddress) public view returns (uint256) {
+    function _getPoolBalance(address tokenAddress) public view returns (uint256) {
         IERC20 ERC20Contract = IERC20(tokenAddress);
         return ERC20Contract.balanceOf(address(this));
     }
@@ -189,11 +231,19 @@ contract Pool is Ownable {
     // Ideal strategy would be to mint tokens whenever deposits are added to pool
     // For now, we will mint all tokens at once when the pool is created
     function _mintLiquidityPoolTokens(uint256 usdcAmount) public returns (bool) {
-        uint256 liquidityTokenAmount = usdcAmount * 2;
+        uint256 lpTokenAmount = usdcAmount * 2;
+        i_lpToken.transfer(msg.sender, lpTokenAmount);
+        s_lpTokenSupply += lpTokenAmount;
+        return true;
+    }
 
-        // TODO: should token be instantiated in constructor?
-        LiquidityPoolToken lpToken = LiquidityPoolToken(i_lpTokenAddress);
-        lpToken.transfer(msg.sender, liquidityTokenAmount);
+    // Burn liquidity tokens from depositor
+    function _burnLiquidityPoolTokens(uint256 lpTokenAmount) public returns (bool) {
+        if (lpTokenAmount > i_lpToken.allowance(msg.sender, address(this))) {
+            revert Pool__InsufficientAllowance();
+        }
+        i_lpToken.transferFrom(msg.sender, address(this), lpTokenAmount);
+        s_lpTokenSupply -= lpTokenAmount;
         return true;
     }
 
@@ -201,16 +251,6 @@ contract Pool is Ownable {
     function _getLatestPrice() public view returns (int256) {
         (, int256 price, , , ) = i_priceFeed.latestRoundData();
         return price;
-    }
-
-    // Requests approval from sender
-    function _requestApprovalFromSender(
-        address tokenAddress,
-        uint256 tokenAmount,
-        address senderAccount
-    ) public returns (bool) {
-        IERC20 ERC20Contract = IERC20(tokenAddress);
-        return ERC20Contract.approve(senderAccount, tokenAmount);
     }
 
     // Transfers tokens from sender to pool
