@@ -231,7 +231,6 @@ const { developmentChains } = require("../../helper-hardhat-config")
                   let percentOfDepositToWithdraw
 
                   beforeEach(async function () {
-                      const wethAmount = utils.parseEther("2") // 2 WETH
                       const usdcAmount = utils.parseEther("4000") // 4_000 USDC
                       // deposit into Pool 10 WETH, 20_000 USDC
                       await setupDepositFrom(yieldFarmer, "10", "20000", true)
