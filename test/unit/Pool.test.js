@@ -320,6 +320,45 @@ const { developmentChains } = require("../../helper-hardhat-config")
               })
           })
 
+          // GetUserAccountData
+          describe("getUserAccountData", function () {
+              describe("valid", function () {
+                  beforeEach(async function () {
+                      await setupDepositFrom(yieldFarmer, "10", "20000", true)
+                      await setupDepositFrom(sender, "2.5", "5000", true)
+                  })
+
+                  it("returns the user's share of pool", async function () {
+                      const expected = utils.parseEther("0.2")
+                      const actual = await pool.getUserAccountData(sender.address)
+                      assert.equal(actual[0].toString(), expected.toString())
+                  })
+                  it("returns the user share of WETH", async function () {
+                      const expected = utils.parseEther("2.5")
+                      const actual = await pool.getUserAccountData(sender.address)
+                      assert.equal(actual[1].toString(), expected.toString())
+                  })
+                  it("returns the user share of USDC", async function () {
+                      const expected = utils.parseEther("5000")
+                      const actual = await pool.getUserAccountData(sender.address)
+                      assert.equal(actual[2].toString(), expected.toString())
+                  })
+              })
+
+              it("returns zero when user has no deposit", async function () {
+                  await setupDepositFrom(yieldFarmer, "10", "20000", true)
+                  const expected = utils.parseEther("0")
+                  const actual = await pool.getUserAccountData(sender.address)
+                  assert.equal(actual[1].toString(), expected.toString())
+              })
+
+              it("returns zero when the pool is empty", async function () {
+                  const expected = utils.parseEther("0")
+                  const actual = await pool.getUserAccountData(sender.address)
+                  assert.equal(actual[1].toString(), expected.toString())
+              })
+          })
+
           /* Internal functions */
 
           // Internal function: to test, change to public and remove 'skip'

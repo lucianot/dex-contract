@@ -21,6 +21,8 @@ contract Pool is Ownable {
     /* State Variables */
     address internal immutable i_wethAddress;
     address internal immutable i_usdcAddress;
+    IERC20 internal immutable i_wethToken;
+    IERC20 internal immutable i_usdcToken;
     LiquidityPoolToken internal immutable i_lpToken;
     AggregatorV3Interface internal immutable i_priceFeed;
     uint256 internal s_priceConstant;
@@ -45,6 +47,8 @@ contract Pool is Ownable {
     ) {
         i_wethAddress = _wethAddress;
         i_usdcAddress = _usdcAddress;
+        i_wethToken = IERC20(_wethAddress);
+        i_usdcToken = IERC20(_usdcAddress);
         i_lpToken = LiquidityPoolToken(_lpTokenAddress);
         i_priceFeed = AggregatorV3Interface(_priceFeed);
         s_lpTokenSupply = 0;
@@ -184,7 +188,25 @@ contract Pool is Ownable {
     }
 
     // get sender's balances
-    function getUserAccountData() public pure returns (uint256) {}
+    function getUserAccountData(address user)
+        public
+        view
+        returns (
+            uint256,
+            uint256,
+            uint256
+        )
+    {
+        if (s_lpTokenSupply == 0) {
+            return (0, 0, 0);
+        }
+
+        uint256 lpTokenBalance = i_lpToken.balanceOf(user);
+        uint256 shareOfPool = (lpTokenBalance * 1e18) / s_lpTokenSupply;
+        uint256 wethShare = (shareOfPool * _getPoolBalance(i_wethAddress)) / 1e18;
+        uint256 usdcShare = (shareOfPool * _getPoolBalance(i_usdcAddress)) / 1e18;
+        return (shareOfPool, wethShare, usdcShare);
+    }
 
     // function getProvider(uint256 index) public view returns (address) {
     //     return s_providers[index];
