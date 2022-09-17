@@ -26,7 +26,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
               await usdc.connect(depositor).approve(pool.address, usdcAmountInWei)
               // deposit if requested
               if (isDeposit) {
-                  await pool.connect(depositor).deposit(wethAmountInWei, "ETH")
+                  await pool.connect(depositor).deposit(wethAmountInWei, "WETH")
                   // approve lpTokens?
               }
           }
@@ -62,7 +62,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
               it("user successfully deposits token, completes swap, then withdraws funds", async function () {
                   console.log("Sender depositing...")
                   await setupDepositFrom(sender, "10", "20000", false)
-                  await pool.connect(sender).deposit(utils.parseEther("5"), "ETH")
+                  await pool.connect(sender).deposit(utils.parseEther("5"), "WETH")
 
                   // assert that sender balances are correct
                   console.log("Checking sender balances after deposit...")
