@@ -63,21 +63,21 @@ const { developmentChains } = require("../../helper-hardhat-config")
                   })
 
                   it("transfers the correct amount of send tokens to pool", async function () {
-                      await pool.connect(sender).swap(sendTokenAmount, "ETH")
+                      await pool.connect(sender).swap(sendTokenAmount, "WETH")
                       const actualBalance = await weth.balanceOf(pool.address)
                       const expectedBalance = utils.parseEther("12")
                       assert.equal(actualBalance.toString(), expectedBalance.toString())
                   })
 
                   it("transfers the correct amount of receive tokens to sender", async function () {
-                      await pool.connect(sender).swap(sendTokenAmount, "ETH")
+                      await pool.connect(sender).swap(sendTokenAmount, "WETH")
                       const actualBalance = await usdc.balanceOf(sender.getAddress())
                       const expectedBalance = utils.parseEther("3333.333333333333333334")
                       assert.equal(actualBalance.toString(), expectedBalance.toString())
                   })
 
                   it("emits event", async function () {
-                      await expect(pool.connect(sender).swap(sendTokenAmount, "ETH"))
+                      await expect(pool.connect(sender).swap(sendTokenAmount, "WETH"))
                           .to.emit(pool, "SwapCompleted")
                           .withArgs(utils.parseEther("3333.333333333333333334"))
                   })
@@ -89,7 +89,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
                       // approve Pool contract to spend sender's WETH
                       await weth.connect(sender).approve(pool.address, sendTokenAmount)
                       await expect(
-                          pool.connect(sender).swap(sendTokenAmount, "ETH")
+                          pool.connect(sender).swap(sendTokenAmount, "WETH")
                       ).to.be.revertedWith("ERC20: transfer amount exceeds balance")
                   })
 
@@ -103,7 +103,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
                       // approve Pool contract to spend sender's WETH
                       await weth.connect(sender).approve(pool.address, sendTokenAmount)
                       await expect(
-                          pool.connect(sender).swap(sendTokenAmount, "ETH")
+                          pool.connect(sender).swap(sendTokenAmount, "WETH")
                       ).to.be.revertedWith("Pool__ReceiveBalanceZero()")
                   })
 
@@ -114,8 +114,19 @@ const { developmentChains } = require("../../helper-hardhat-config")
                       await setupTransferTo(sender.address, utils.formatEther(sendTokenAmount), "0")
                       // do not approve Pool contract to spend sender's WETH
                       await expect(
-                          pool.connect(sender).swap(sendTokenAmount, "ETH")
+                          pool.connect(sender).swap(sendTokenAmount, "WETH")
                       ).to.be.revertedWith("ERC20: insufficient allowance")
+                  })
+
+                  it("reverts if token ticker is invalid", async function () {
+                      // fund pool with tokens
+                      await setupTransferTo(pool.address, "10", "16000") // 10 WETH, 16_000 USDC
+                      // fund sender with WETH
+                      await setupTransferTo(sender.address, utils.formatEther(sendTokenAmount), "0")
+                      // do not approve Pool contract to spend sender's WETH
+                      await expect(
+                          pool.connect(sender).swap(sendTokenAmount, "XYZ")
+                      ).to.be.revertedWith("Pool__InvalidTicker")
                   })
               })
           })
@@ -281,6 +292,52 @@ const { developmentChains } = require("../../helper-hardhat-config")
                       await expect(
                           pool.connect(sender).withdraw(utils.parseEther("100.0001"))
                       ).to.revertedWith("Pool__InvalidWithdrawPercentage")
+                  })
+              })
+          })
+
+          // ConvertTokenAmount
+          describe("getSwapData", function () {
+              describe("valid", function () {
+                  beforeEach(async function () {
+                      await setupDepositFrom(yieldFarmer, "10", "20000", true)
+                  })
+
+                  it("returns the correct amount of USDC", async function () {
+                      const wethAmount = utils.parseEther("6")
+                      const expected = utils.parseEther("7500")
+                      const actual = await pool.getSwapData("WETH", wethAmount)
+                      assert.equal(actual[0].toString(), expected.toString())
+                  })
+
+                  it("returns the correct price of USDC/ETH", async function () {
+                      const wethAmount = utils.parseEther("6")
+                      const expected = utils.parseEther("1250")
+                      const actual = await pool.getSwapData("WETH", wethAmount)
+                      assert.equal(actual[1].toString(), expected.toString())
+                  })
+
+                  it("returns the correct amount of ETH", async function () {
+                      const wethAmount = utils.parseEther("5000")
+                      const expected = utils.parseEther("2")
+                      const actual = await pool.getSwapData("USDC", wethAmount)
+                      assert.equal(actual[0].toString(), expected.toString())
+                  })
+
+                  it("returns the correct price of ETH/USDC", async function () {
+                      const wethAmount = utils.parseEther("5000")
+                      const expected = utils.parseEther("0.0004")
+                      const actual = await pool.getSwapData("USDC", wethAmount)
+                      assert.equal(actual[1].toString(), expected.toString())
+                  })
+              })
+
+              describe("invalid", function () {
+                  it("reverts if receive balance is zero", async function () {
+                      const wethAmount = utils.parseEther("2")
+                      await expect(pool.getSwapData("WETH", wethAmount)).to.be.revertedWith(
+                          "Pool__ReceiveBalanceZero"
+                      )
                   })
               })
           })

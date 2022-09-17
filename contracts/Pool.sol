@@ -138,28 +138,61 @@ contract Pool is Ownable {
 
     // swap tokens
     function swap(uint256 sendTokenAmount, string memory sendTokenTicker) public returns (bool) {
-        address sendTokenAddress;
-        address receiveTokenAddress;
+        IERC20 sendToken;
+        IERC20 receiveToken;
         uint256 receiveTokenAmount;
 
         // set the correct addresses for tokens
-        (sendTokenAddress, receiveTokenAddress) = _getTokenAddresses(sendTokenTicker);
+        (sendToken, receiveToken) = _getTokens(sendTokenTicker);
 
         // calculate the equivalent amount of receive token
-        receiveTokenAmount = convertTokenAmount(
-            sendTokenAmount,
-            sendTokenAddress,
-            receiveTokenAddress
-        );
+        (receiveTokenAmount, ) = getSwapData(sendTokenTicker, sendTokenAmount);
 
         // receive tokens from sender
-        _receiveTokenFromSender(sendTokenAddress, msg.sender, sendTokenAmount);
+        sendToken.transferFrom(msg.sender, address(this), sendTokenAmount);
 
         // send other token to sender
-        _sendTokenToSender(receiveTokenAddress, msg.sender, receiveTokenAmount);
+        receiveToken.transfer(msg.sender, receiveTokenAmount);
 
         emit SwapCompleted(receiveTokenAmount);
         return true;
+    }
+
+    // Calculates the amount of receive tokens and intrinsic swap price
+    function getSwapData(string memory sendTokenTicker, uint256 sendTokenAmount)
+        public
+        view
+        returns (uint256, uint256)
+    {
+        IERC20 sendToken;
+        IERC20 receiveToken;
+        uint256 receiveTokenAmount;
+        uint256 swapPrice;
+
+        // select the correct send and receive tokens
+        (sendToken, receiveToken) = _getTokens(sendTokenTicker);
+
+        // get current contract balance for each token
+        uint256 sendTokenBalance = sendToken.balanceOf(address(this));
+        uint256 receiveTokenBalance = receiveToken.balanceOf(address(this));
+
+        // revert if there are no tokens left to send
+        if (receiveTokenBalance == 0) {
+            revert Pool__ReceiveBalanceZero();
+        }
+
+        // calculate the equivalent amount of receive token
+        receiveTokenAmount = _calculateSwapAmount(
+            sendTokenAmount,
+            sendTokenBalance,
+            receiveTokenBalance,
+            s_priceConstant
+        );
+
+        // calculate the swap price
+        swapPrice = (receiveTokenAmount * 1e18) / sendTokenAmount;
+
+        return (receiveTokenAmount, swapPrice);
     }
 
     // calculate the equivalent amount of the token to be received
@@ -311,5 +344,23 @@ contract Pool is Ownable {
         }
 
         return (sendTokenAddress, receiveTokenAddress);
+    }
+
+    // Gets token addresses
+    function _getTokens(string memory sendTicker) public view returns (IERC20, IERC20) {
+        IERC20 sendToken;
+        IERC20 receiveToken;
+
+        if (keccak256(abi.encodePacked(sendTicker)) == keccak256(abi.encodePacked("WETH"))) {
+            sendToken = i_wethToken;
+            receiveToken = i_usdcToken;
+        } else if (keccak256(abi.encodePacked(sendTicker)) == keccak256(abi.encodePacked("USDC"))) {
+            sendToken = i_usdcToken;
+            receiveToken = i_wethToken;
+        } else {
+            revert Pool__InvalidTicker();
+        }
+
+        return (sendToken, receiveToken);
     }
 }

@@ -59,7 +59,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
                   await setupDepositFrom(yieldFarmer, "10", "20000", true)
               })
 
-              it("user successfully deposits token, makes swap, then withdraws funds", async function () {
+              it("user successfully deposits token, completes swap, then withdraws funds", async function () {
                   console.log("Sender depositing...")
                   await setupDepositFrom(sender, "10", "20000", false)
                   await pool.connect(sender).deposit(utils.parseEther("5"), "ETH")
@@ -87,7 +87,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
                   // sender swaps USDC for WETH
                   console.log("Sender swapping tokens...")
                   const swapAmount = utils.parseEther("1")
-                  await pool.connect(sender).swap(swapAmount, "ETH")
+                  await pool.connect(sender).swap(swapAmount, "WETH")
 
                   // assert that sender balances are correct
                   console.log("Checking sender balances after swap...")
