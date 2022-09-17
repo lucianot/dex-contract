@@ -304,7 +304,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
               })
           })
 
-          // ConvertTokenAmount
+          // GetSwapData
           describe("getSwapData", function () {
               describe("valid", function () {
                   beforeEach(async function () {
@@ -347,40 +347,6 @@ const { developmentChains } = require("../../helper-hardhat-config")
                           "Pool__ReceiveBalanceZero"
                       )
                   })
-              })
-          })
-
-          // ConvertTokenAmount
-          describe("convertTokenAmount", function () {
-              it("returns the correct amount of USDC", async function () {
-                  await setupDepositFrom(yieldFarmer, "10", "20000", true)
-                  const wethAmount = utils.parseEther("2")
-                  const expected = utils.parseEther("3333.333333333333333334")
-                  const actual = await pool.convertTokenAmount(
-                      wethAmount,
-                      weth.address,
-                      usdc.address
-                  )
-                  assert.equal(actual.toString(), expected.toString())
-              })
-
-              it("returns the correct amount of WETH", async function () {
-                  await setupDepositFrom(yieldFarmer, "10", "20000", true)
-                  const usdcAmount = utils.parseEther("5000")
-                  const expected = utils.parseEther("2")
-                  const actual = await pool.convertTokenAmount(
-                      usdcAmount,
-                      usdc.address,
-                      weth.address
-                  )
-                  assert.equal(actual.toString(), expected.toString())
-              })
-
-              it("reverts if receive balance is zero", async function () {
-                  const wethAmount = utils.parseEther("2")
-                  await expect(
-                      pool.convertTokenAmount(wethAmount, weth.address, usdc.address)
-                  ).to.be.revertedWith("Pool__ReceiveBalanceZero")
               })
           })
 
@@ -444,25 +410,6 @@ const { developmentChains } = require("../../helper-hardhat-config")
           })
 
           // Internal function: to test, change to public and remove 'skip'
-          describe("_getPoolBalance", function () {
-              it("returns the correct amount of WETH", async function () {
-                  await setupTransferTo(pool.address, "10", "0")
-                  const sendAddress = pool.getWethAddress()
-                  const expected = utils.parseEther("10")
-                  const actual = await pool._getPoolBalance(sendAddress)
-                  assert.equal(actual.toString(), expected.toString())
-              })
-
-              it("returns the correct amount of USDC", async function () {
-                  await setupTransferTo(pool.address, "0", "16000")
-                  const sendAddress = pool.getUsdcAddress()
-                  const expected = utils.parseEther("16000")
-                  const actual = await pool._getPoolBalance(sendAddress)
-                  assert.equal(actual.toString(), expected.toString())
-              })
-          })
-
-          // Internal function: to test, change to public and remove 'skip'
           describe("_mintLiquidityPoolTokens", function () {
               it("mints the correct amount of liquidity pool tokens", async function () {
                   const usdcAmount = utils.parseEther("2000")
@@ -508,85 +455,27 @@ const { developmentChains } = require("../../helper-hardhat-config")
           })
 
           // Internal function: to test, change to public and remove 'skip'
-          describe("_receiveTokenFromSender", function () {
-              let currentContractBalance, transferAmount
-
-              beforeEach(async function () {
-                  currentContractBalance = utils.parseEther("10")
-                  transferAmount = utils.parseEther("2")
-                  await setupTransferTo(
-                      pool.address,
-                      utils.formatEther(currentContractBalance),
-                      "0"
-                  )
-                  await weth.connect(sender).approve(pool.address, transferAmount)
-              })
-
-              it("transfers token from sender to contract", async function () {
-                  // fund sender with WETH
-                  await setupTransferTo(sender.address, utils.formatEther(transferAmount), "0")
-                  await pool._receiveTokenFromSender(weth.address, sender.address, transferAmount)
-                  const expectedContractBalance = currentContractBalance.add(transferAmount)
-                  const actualContractBalance = await weth.balanceOf(pool.address)
-                  assert.equal(actualContractBalance.toString(), expectedContractBalance.toString())
-              })
-
-              it("reverts if sender does not have enough token", async function () {
-                  await expect(
-                      pool._receiveTokenFromSender(weth.address, sender.address, transferAmount)
-                  ).to.be.revertedWith("ERC20: transfer amount exceeds balance")
-              })
-          })
-
-          // Internal function: to test, change to public and remove 'skip'
-          describe("_sendTokenToSender", function () {
-              let currentContractBalance, transferAmount
-
-              beforeEach(async function () {
-                  currentContractBalance = utils.parseEther("16000")
-                  transferAmount = utils.parseEther("2000")
-              })
-
-              it("transfers token from contract to sender", async function () {
-                  // fund sender with USDC
-                  await setupTransferTo(
-                      pool.address,
-                      "0",
-                      utils.formatEther(currentContractBalance)
-                  )
-                  await pool._sendTokenToSender(usdc.address, sender.address, transferAmount)
-                  const expectedContractBalance = currentContractBalance.sub(transferAmount)
-                  const actualContractBalance = await usdc.balanceOf(pool.address)
-                  assert.equal(actualContractBalance.toString(), expectedContractBalance.toString())
-              })
-
-              it("reverts if pool does not have enough token", async function () {
-                  await expect(
-                      pool._sendTokenToSender(usdc.address, sender.address, transferAmount)
-                  ).to.be.revertedWith("ERC20: transfer amount exceeds balance")
-              })
-          })
-
-          // Internal function: to test, change to public and remove 'skip'
-          describe("_getTokenAddresses", function () {
-              it("returns the correct addresses", async function () {
-                  const result = await pool._getTokenAddresses("ETH")
-                  const { 0: sendAddress, 1: receiveAddress } = result
-                  assert.equal(sendAddress, weth.address)
-                  assert.equal(receiveAddress, usdc.address)
+          describe("_getTokens", function () {
+              it("returns the correct contract interface", async function () {
+                  const result = await pool._getTokens("WETH")
+                  const { 0: sendToken, 1: receiveToken } = result
+                  const expectedSendToken = await pool.getWethToken()
+                  const expectedReceiveToken = await pool.getUsdcToken()
+                  assert.equal(sendToken, expectedSendToken)
+                  assert.equal(receiveToken, expectedReceiveToken)
               })
 
               it("returns the correct addresses", async function () {
-                  const result = await pool._getTokenAddresses("USDC")
-                  const { 0: sendAddress, 1: receiveAddress } = result
-                  assert.equal(sendAddress, usdc.address)
-                  assert.equal(receiveAddress, weth.address)
+                  const result = await pool._getTokens("USDC")
+                  const { 0: sendToken, 1: receiveToken } = result
+                  const expectedSendToken = await pool.getUsdcToken()
+                  const expectedReceiveToken = await pool.getWethToken()
+                  assert.equal(sendToken, expectedSendToken)
+                  assert.equal(receiveToken, expectedReceiveToken)
               })
 
               it("reverts if ticker is invalid", async function () {
-                  await expect(pool._getTokenAddresses("XYZ")).to.be.revertedWith(
-                      "Pool__InvalidTicker"
-                  )
+                  await expect(pool._getTokens("XYZ")).to.be.revertedWith("Pool__InvalidTicker")
               })
           })
       })

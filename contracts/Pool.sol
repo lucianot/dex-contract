@@ -19,17 +19,12 @@ contract Pool is Ownable {
     /* Type Declarations */
 
     /* State Variables */
-    address internal immutable i_wethAddress;
-    address internal immutable i_usdcAddress;
     IERC20 internal immutable i_wethToken;
     IERC20 internal immutable i_usdcToken;
     LiquidityPoolToken internal immutable i_lpToken;
     AggregatorV3Interface internal immutable i_priceFeed;
     uint256 internal s_priceConstant;
     uint256 internal s_lpTokenSupply;
-
-    // address payable[] private s_providers;
-    // uint256 private s_constant;
 
     /* Events */
     event SwapCompleted(uint256 indexed receivedTokenAmount);
@@ -45,8 +40,6 @@ contract Pool is Ownable {
         address _lpTokenAddress,
         address _priceFeed
     ) {
-        i_wethAddress = _wethAddress;
-        i_usdcAddress = _usdcAddress;
         i_wethToken = IERC20(_wethAddress);
         i_usdcToken = IERC20(_usdcAddress);
         i_lpToken = LiquidityPoolToken(_lpTokenAddress);
@@ -63,8 +56,8 @@ contract Pool is Ownable {
     function deposit(uint256 tokenAmount, string memory tokenTicker) public returns (bool) {
         uint256 usdcAmount;
         uint256 wethAmount;
-        uint256 wethInitialBalance = _getPoolBalance(i_wethAddress);
-        uint256 usdcInitialBalance = _getPoolBalance(i_usdcAddress);
+        uint256 wethInitialBalance = i_wethToken.balanceOf(address(this));
+        uint256 usdcInitialBalance = i_usdcToken.balanceOf(address(this));
 
         // set token amounts based on oracle price
         (wethAmount, usdcAmount) = _getDepositAmounts(tokenTicker, tokenAmount);
@@ -101,8 +94,8 @@ contract Pool is Ownable {
         uint256 percentOfPoolToWithdraw = (lpTokenAmountToBurn * 1e18) / s_lpTokenSupply;
 
         // calculate amount of tokens to withdraw
-        uint256 wethInitialBalance = _getPoolBalance(i_wethAddress);
-        uint256 usdcInitialBalance = _getPoolBalance(i_usdcAddress);
+        uint256 wethInitialBalance = i_wethToken.balanceOf(address(this));
+        uint256 usdcInitialBalance = i_usdcToken.balanceOf(address(this));
         uint256 wethAmount = (wethInitialBalance * percentOfPoolToWithdraw) / 1e18;
         uint256 usdcAmount = (usdcInitialBalance * percentOfPoolToWithdraw) / 1e18;
 
@@ -111,8 +104,8 @@ contract Pool is Ownable {
         _burnLiquidityPoolTokens(lpTokenAmountToBurn);
 
         // send tokens to depositor
-        _sendTokenToSender(i_wethAddress, msg.sender, wethAmount);
-        _sendTokenToSender(i_usdcAddress, msg.sender, usdcAmount);
+        i_wethToken.transfer(msg.sender, wethAmount);
+        i_usdcToken.transfer(msg.sender, usdcAmount);
 
         // update the constant
         s_priceConstant =
@@ -183,31 +176,6 @@ contract Pool is Ownable {
         return (receiveTokenAmount, swapPrice);
     }
 
-    // calculate the equivalent amount of the token to be received
-    function convertTokenAmount(
-        uint256 sendTokenAmount,
-        address sendTokenAddress,
-        address receiveTokenAddress
-    ) public view returns (uint256) {
-        // get current contract balance for each token
-        uint256 sendTokenBalance = _getPoolBalance(sendTokenAddress);
-        uint256 receiveTokenBalance = _getPoolBalance(receiveTokenAddress);
-
-        // revert if there are no tokens left to send
-        if (receiveTokenBalance == 0) {
-            revert Pool__ReceiveBalanceZero();
-        }
-
-        // calculate the equivalent amount of receive token
-        return
-            _calculateSwapAmount(
-                sendTokenAmount,
-                sendTokenBalance,
-                receiveTokenBalance,
-                s_priceConstant
-            );
-    }
-
     // get sender's balances
     function getUserAccountData(address user)
         public
@@ -224,21 +192,9 @@ contract Pool is Ownable {
 
         uint256 lpTokenBalance = i_lpToken.balanceOf(user);
         uint256 shareOfPool = (lpTokenBalance * 1e18) / s_lpTokenSupply;
-        uint256 wethShare = (shareOfPool * _getPoolBalance(i_wethAddress)) / 1e18;
-        uint256 usdcShare = (shareOfPool * _getPoolBalance(i_usdcAddress)) / 1e18;
+        uint256 wethShare = (shareOfPool * i_wethToken.balanceOf(address(this))) / 1e18;
+        uint256 usdcShare = (shareOfPool * i_usdcToken.balanceOf(address(this))) / 1e18;
         return (shareOfPool, wethShare, usdcShare);
-    }
-
-    // function getProvider(uint256 index) public view returns (address) {
-    //     return s_providers[index];
-    // }
-
-    function getWethAddress() public view returns (address) {
-        return i_wethAddress;
-    }
-
-    function getUsdcAddress() public view returns (address) {
-        return i_usdcAddress;
     }
 
     function getPriceConstant() public view returns (uint256) {
@@ -247,6 +203,14 @@ contract Pool is Ownable {
 
     function getLpTokenSupply() public view returns (uint256) {
         return s_lpTokenSupply;
+    }
+
+    function getWethToken() public view returns (IERC20) {
+        return i_wethToken;
+    }
+
+    function getUsdcToken() public view returns (IERC20) {
+        return i_usdcToken;
     }
 
     /* Internal Functions */
@@ -288,12 +252,6 @@ contract Pool is Ownable {
         return (wethAmount, usdcAmount);
     }
 
-    // Returns how much the Pool contract owns of a given token
-    function _getPoolBalance(address tokenAddress) public view returns (uint256) {
-        IERC20 ERC20Contract = IERC20(tokenAddress);
-        return ERC20Contract.balanceOf(address(this));
-    }
-
     // Mint liquidity tokens to depositor
     // Ideal strategy would be to mint tokens whenever deposits are added to pool
     // For now, we will mint all tokens at once when the pool is created
@@ -318,44 +276,6 @@ contract Pool is Ownable {
     function _getLatestPrice() public view returns (int256) {
         (, int256 price, , , ) = i_priceFeed.latestRoundData();
         return price;
-    }
-
-    // Transfers tokens from sender to pool
-    function _receiveTokenFromSender(
-        address tokenAddress,
-        address senderAddress,
-        uint256 tokenAmount
-    ) public returns (bool) {
-        IERC20 ERC20Contract = IERC20(tokenAddress);
-        return ERC20Contract.transferFrom(senderAddress, address(this), tokenAmount);
-    }
-
-    // Transfers token to sender
-    function _sendTokenToSender(
-        address tokenAddress,
-        address senderAddress,
-        uint256 tokenAmount
-    ) public returns (bool) {
-        IERC20 ERC20Contract = IERC20(tokenAddress);
-        return ERC20Contract.transfer(senderAddress, tokenAmount);
-    }
-
-    // Gets token addresses
-    function _getTokenAddresses(string memory sendTicker) public view returns (address, address) {
-        address sendTokenAddress;
-        address receiveTokenAddress;
-
-        if (keccak256(abi.encodePacked(sendTicker)) == keccak256(abi.encodePacked("ETH"))) {
-            sendTokenAddress = i_wethAddress;
-            receiveTokenAddress = i_usdcAddress;
-        } else if (keccak256(abi.encodePacked(sendTicker)) == keccak256(abi.encodePacked("USDC"))) {
-            sendTokenAddress = i_usdcAddress;
-            receiveTokenAddress = i_wethAddress;
-        } else {
-            revert Pool__InvalidTicker();
-        }
-
-        return (sendTokenAddress, receiveTokenAddress);
     }
 
     // Gets token addresses
