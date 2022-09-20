@@ -27,7 +27,6 @@ const { developmentChains } = require("../../helper-hardhat-config")
               // deposit if requested
               if (isDeposit) {
                   await pool.connect(depositor).deposit(wethAmountInWei, "WETH")
-                  // approve lpTokens?
               }
           }
 
@@ -173,7 +172,6 @@ const { developmentChains } = require("../../helper-hardhat-config")
                       // fund sender with tokens
                       await setupDepositFrom(sender, "2", "4000", true)
                       // Approve pool to burn lpTokens
-                      await lpToken.connect(sender).approve(pool.address, usdcAmount.mul(2))
                       percentOfDepositToWithdraw = utils.parseEther("0.6")
                   })
 
@@ -452,7 +450,6 @@ const { developmentChains } = require("../../helper-hardhat-config")
                   )
                   // Approve pool to burn lpTokens
                   const lpTokenAmount = utils.parseEther("2000") // 2_000 lpTokens
-                  await lpToken.connect(sender).approve(pool.address, usdcAmount.mul(2))
 
                   await pool.connect(sender)._burnLiquidityPoolTokens(lpTokenAmount)
                   const expected = utils.parseEther("6000")

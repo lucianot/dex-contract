@@ -108,7 +108,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
 
                   // sender withdraws from Pool
                   console.log("Sender withdrawing liquidity...")
-                  await lpToken.connect(sender).approve(pool.address, utils.parseEther("20000"))
+                  //   await lpToken.connect(sender).approve(pool.address, utils.parseEther("20000"))
                   await pool.connect(sender).withdraw(utils.parseEther("0.12"))
 
                   // assert that sender balances are correct

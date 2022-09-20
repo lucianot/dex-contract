@@ -256,9 +256,6 @@ contract Pool is Ownable {
 
     // Burn liquidity tokens from depositor
     function _burnLiquidityPoolTokens(uint256 lpTokenAmount) public returns (bool) {
-        if (lpTokenAmount > i_lpToken.allowance(msg.sender, address(this))) {
-            revert Pool__InsufficientAllowance();
-        }
         i_lpToken.burn(msg.sender, lpTokenAmount);
         return true;
     }
