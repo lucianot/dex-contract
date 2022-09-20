@@ -24,7 +24,6 @@ contract Pool is Ownable {
     LiquidityPoolToken internal immutable i_lpToken;
     AggregatorV3Interface internal immutable i_priceFeed;
     uint256 internal s_priceConstant;
-    uint256 internal s_lpTokenSupply;
 
     /* Events */
     event SwapCompleted(uint256 indexed receivedTokenAmount);
@@ -44,7 +43,6 @@ contract Pool is Ownable {
         i_usdcToken = IERC20(_usdcAddress);
         i_lpToken = LiquidityPoolToken(_lpTokenAddress);
         i_priceFeed = AggregatorV3Interface(_priceFeed);
-        s_lpTokenSupply = 0;
     }
 
     /* Receive function (if exists) */
@@ -91,7 +89,7 @@ contract Pool is Ownable {
         uint256 lpTokenAmountToBurn = (depositorLpTokenBalance * percentOfDepositToWithdraw) / 1e18;
 
         // calculate depositor's withdrawal as percentage of total pool
-        uint256 percentOfPoolToWithdraw = (lpTokenAmountToBurn * 1e18) / s_lpTokenSupply;
+        uint256 percentOfPoolToWithdraw = (lpTokenAmountToBurn * 1e18) / i_lpToken.totalSupply();
 
         // calculate amount of tokens to withdraw
         uint256 wethInitialBalance = i_wethToken.balanceOf(address(this));
@@ -100,7 +98,6 @@ contract Pool is Ownable {
         uint256 usdcAmount = (usdcInitialBalance * percentOfPoolToWithdraw) / 1e18;
 
         // burn liquidity tokens from depositor
-        // TODO: find a better way to give pool permission to burn tokens
         _burnLiquidityPoolTokens(lpTokenAmountToBurn);
 
         // send tokens to depositor
@@ -186,12 +183,14 @@ contract Pool is Ownable {
             uint256
         )
     {
-        if (s_lpTokenSupply == 0) {
+        uint256 lpTokenSupply = i_lpToken.totalSupply();
+
+        if (lpTokenSupply == 0) {
             return (0, 0, 0);
         }
 
         uint256 lpTokenBalance = i_lpToken.balanceOf(user);
-        uint256 shareOfPool = (lpTokenBalance * 1e18) / s_lpTokenSupply;
+        uint256 shareOfPool = (lpTokenBalance * 1e18) / lpTokenSupply;
         uint256 wethShare = (shareOfPool * i_wethToken.balanceOf(address(this))) / 1e18;
         uint256 usdcShare = (shareOfPool * i_usdcToken.balanceOf(address(this))) / 1e18;
         return (shareOfPool, wethShare, usdcShare);
@@ -199,10 +198,6 @@ contract Pool is Ownable {
 
     function getPriceConstant() public view returns (uint256) {
         return s_priceConstant;
-    }
-
-    function getLpTokenSupply() public view returns (uint256) {
-        return s_lpTokenSupply;
     }
 
     function getWethToken() public view returns (IERC20) {
@@ -253,12 +248,9 @@ contract Pool is Ownable {
     }
 
     // Mint liquidity tokens to depositor
-    // Ideal strategy would be to mint tokens whenever deposits are added to pool
-    // For now, we will mint all tokens at once when the pool is created
     function _mintLiquidityPoolTokens(uint256 usdcAmount) public returns (bool) {
         uint256 lpTokenAmount = usdcAmount * 2;
-        i_lpToken.transfer(msg.sender, lpTokenAmount);
-        s_lpTokenSupply += lpTokenAmount;
+        i_lpToken.mint(msg.sender, lpTokenAmount);
         return true;
     }
 
@@ -267,8 +259,7 @@ contract Pool is Ownable {
         if (lpTokenAmount > i_lpToken.allowance(msg.sender, address(this))) {
             revert Pool__InsufficientAllowance();
         }
-        i_lpToken.transferFrom(msg.sender, address(this), lpTokenAmount);
-        s_lpTokenSupply -= lpTokenAmount;
+        i_lpToken.burn(msg.sender, lpTokenAmount);
         return true;
     }
 

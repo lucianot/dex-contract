@@ -77,7 +77,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
                   assert.equal(poolBalances[0].toString(), utils.parseEther("15").toString())
                   assert.equal(poolBalances[1].toString(), utils.parseEther("30000").toString())
                   assert.equal(
-                      (await pool.getLpTokenSupply()).toString(),
+                      (await lpToken.totalSupply()).toString(),
                       utils.parseEther("60000").toString()
                   )
 
@@ -102,7 +102,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
                   assert.equal(poolBalances[0].toString(), utils.parseEther("16").toString())
                   assert.equal(poolBalances[1].toString(), utils.parseEther("28125").toString())
                   assert.equal(
-                      (await pool.getLpTokenSupply()).toString(),
+                      (await lpToken.totalSupply()).toString(),
                       utils.parseEther("60000").toString()
                   )
 
@@ -124,7 +124,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
                   assert.equal(poolBalances[0].toString(), utils.parseEther("15.36").toString())
                   assert.equal(poolBalances[1].toString(), utils.parseEther("27000").toString())
                   assert.equal(
-                      (await pool.getLpTokenSupply()).toString(),
+                      (await lpToken.totalSupply()).toString(),
                       utils.parseEther("57600").toString()
                   )
 

@@ -407,6 +407,21 @@ const { developmentChains } = require("../../helper-hardhat-config")
                   )
                   assert.equal(actual.toString(), expected.toString())
               })
+
+              it("returns the correct amount to swap", async function () {
+                  const sendAmount = utils.parseEther("40")
+                  const sendBalance = utils.parseEther("200")
+                  const receiveBalance = utils.parseEther("200")
+                  const k = utils.parseEther("40000")
+                  const expected = utils.parseEther("33.333333333333333334")
+                  const actual = await pool._calculateSwapAmount(
+                      sendAmount,
+                      sendBalance,
+                      receiveBalance,
+                      k
+                  )
+                  assert.equal(actual.toString(), expected.toString())
+              })
           })
 
           // Internal function: to test, change to public and remove 'skip'

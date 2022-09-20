@@ -49,11 +49,10 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
         await verify(pool.address, arguments)
     }
 
-    // Transfer liquidity pool token to the pool
-    log("Transferring liquidity pool tokens to pool contract...")
+    // Grant minter and burner role to the pool
     const lpToken = await ethers.getContract("LiquidityPoolToken", deployer)
-    const supply = await lpToken.balanceOf(deployer)
-    await lpToken.transfer(pool.address, supply)
+    await lpToken.grantRole(await lpToken.MINTER_ROLE(), pool.address)
+    await lpToken.grantRole(await lpToken.BURNER_ROLE(), pool.address)
 }
 
 module.exports.tags = ["all", "pool", "main"]

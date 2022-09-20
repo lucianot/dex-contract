@@ -2,7 +2,7 @@ const { getNamedAccounts, deployments, network, ethers } = require("hardhat")
 const { developmentChains, VERIFICATION_BLOCK_CONFIRMATIONS } = require("../helper-hardhat-config")
 const { verify } = require("../helper-functions")
 
-const INITIAL_SUPPLY = ethers.utils.parseEther("1000000000")
+// const INITIAL_SUPPLY = ethers.utils.parseEther("1000000000")
 
 module.exports = async ({ getNamedAccounts, deployments }) => {
     const { deploy, log } = deployments
@@ -13,7 +13,7 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
         : VERIFICATION_BLOCK_CONFIRMATIONS
 
     log("----------------------------------------------------")
-    const arguments = [INITIAL_SUPPLY]
+    const arguments = []
     const lpToken = await deploy("LiquidityPoolToken", {
         from: deployer,
         args: arguments,
