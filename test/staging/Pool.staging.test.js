@@ -60,6 +60,17 @@ const { developmentChains } = require("../../helper-hardhat-config")
               })
 
               it("user successfully deposits token, completes swap, then withdraws funds", async function () {
+                  // get deposit amounts
+                  console.log("Checking amounts to deposit...")
+                  const wethDepositAmount = utils.parseEther("10")
+                  const [wethAmount, usdcAmount] = await pool.getDepositAmounts(
+                      "WETH",
+                      wethDepositAmount
+                  )
+                  assert.equal(wethAmount.toString(), wethDepositAmount.toString())
+                  assert.equal(usdcAmount.toString(), utils.parseEther("20000").toString())
+
+                  // deposit into Pool
                   console.log("Sender depositing...")
                   await setupDepositFrom(sender, "10", "20000", false)
                   await pool.connect(sender).deposit(utils.parseEther("5"), "WETH")
@@ -82,11 +93,15 @@ const { developmentChains } = require("../../helper-hardhat-config")
                   )
 
                   // check swap amount
-                  // await pool.convertTokenAmount(utils.parseEther("1"), weth.address, usdc.address)
+                  console.log("Checking swap prices...")
+                  const swapAmount = utils.parseEther("1")
+                  const expectedPrice = utils.parseEther("1875")
+                  const [receiveTokenAmount, swapPrice] = await pool.getSwapData("WETH", swapAmount)
+                  assert.equal(receiveTokenAmount.toString(), expectedPrice.toString())
+                  assert.equal(swapPrice.toString(), expectedPrice.toString())
 
                   // sender swaps USDC for WETH
                   console.log("Sender swapping tokens...")
-                  const swapAmount = utils.parseEther("1")
                   await pool.connect(sender).swap(swapAmount, "WETH")
 
                   // assert that sender balances are correct
@@ -108,7 +123,6 @@ const { developmentChains } = require("../../helper-hardhat-config")
 
                   // sender withdraws from Pool
                   console.log("Sender withdrawing liquidity...")
-                  //   await lpToken.connect(sender).approve(pool.address, utils.parseEther("20000"))
                   await pool.connect(sender).withdraw(utils.parseEther("0.12"))
 
                   // assert that sender balances are correct

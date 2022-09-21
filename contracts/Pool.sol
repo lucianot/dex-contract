@@ -58,7 +58,7 @@ contract Pool is Ownable {
         uint256 usdcInitialBalance = i_usdcToken.balanceOf(address(this));
 
         // set token amounts based on oracle price
-        (wethAmount, usdcAmount) = _getDepositAmounts(tokenTicker, tokenAmount);
+        (wethAmount, usdcAmount) = getDepositAmounts(tokenTicker, tokenAmount);
 
         // receive tokens from depositor
         i_wethToken.transferFrom(msg.sender, address(this), wethAmount);
@@ -134,6 +134,31 @@ contract Pool is Ownable {
 
         emit SwapCompleted(receiveTokenAmount);
         return true;
+    }
+
+    // Calculates the amount of tokens to deposit based on oracle price
+    function getDepositAmounts(string memory tokenTicker, uint256 tokenAmount)
+        public
+        view
+        returns (uint256, uint256)
+    {
+        uint256 wethAmount;
+        uint256 usdcAmount;
+        int256 usdcEthOraclePrice = _getLatestPrice();
+
+        if (keccak256(abi.encodePacked(tokenTicker)) == keccak256(abi.encodePacked("WETH"))) {
+            wethAmount = tokenAmount;
+            usdcAmount = (wethAmount * 1e18) / uint256(usdcEthOraclePrice);
+        } else if (
+            keccak256(abi.encodePacked(tokenTicker)) == keccak256(abi.encodePacked("USDC"))
+        ) {
+            usdcAmount = tokenAmount;
+            wethAmount = (usdcAmount * uint256(usdcEthOraclePrice)) / 1e18;
+        } else {
+            revert Pool__InvalidTicker();
+        }
+
+        return (wethAmount, usdcAmount);
     }
 
     // Calculates the amount of receive tokens and intrinsic swap price
@@ -221,30 +246,6 @@ contract Pool is Ownable {
             int256(sendTokenBalance + sendTokenAmount)) - int256(receiveTokenBalance);
 
         return uint256(receiveTokenAmount * -1);
-    }
-
-    function _getDepositAmounts(string memory tokenTicker, uint256 tokenAmount)
-        internal
-        view
-        returns (uint256, uint256)
-    {
-        uint256 wethAmount;
-        uint256 usdcAmount;
-        int256 usdcEthOraclePrice = _getLatestPrice();
-
-        if (keccak256(abi.encodePacked(tokenTicker)) == keccak256(abi.encodePacked("WETH"))) {
-            wethAmount = tokenAmount;
-            usdcAmount = (wethAmount * 1e18) / uint256(usdcEthOraclePrice);
-        } else if (
-            keccak256(abi.encodePacked(tokenTicker)) == keccak256(abi.encodePacked("USDC"))
-        ) {
-            usdcAmount = tokenAmount;
-            wethAmount = (usdcAmount * uint256(usdcEthOraclePrice)) / 1e18;
-        } else {
-            revert Pool__InvalidTicker();
-        }
-
-        return (wethAmount, usdcAmount);
     }
 
     // Mint liquidity tokens to depositor

@@ -348,6 +348,42 @@ const { developmentChains } = require("../../helper-hardhat-config")
               })
           })
 
+          // GetDepositAmounts
+          describe("getDepositAmounts", function () {
+              let wethDepositAmount
+
+              beforeEach(async function () {
+                  await setupDepositFrom(yieldFarmer, "10", "20000", true)
+                  wethDepositAmount = utils.parseEther("2")
+              })
+
+              describe("valid", function () {
+                  it("returns the correct amount of WETH", async function () {
+                      const [wethAmount, _] = await pool.getDepositAmounts(
+                          "WETH",
+                          wethDepositAmount
+                      )
+                      assert.equal(wethAmount.toString(), wethDepositAmount.toString())
+                  })
+
+                  it("returns the correct amount of USDC", async function () {
+                      const [_, usdcAmount] = await pool.getDepositAmounts(
+                          "WETH",
+                          wethDepositAmount
+                      )
+                      assert.equal(usdcAmount.toString(), utils.parseEther("4000").toString())
+                  })
+              })
+
+              describe("invalid", function () {
+                  it("reverts if ticker is invalid", async function () {
+                      await expect(
+                          pool.getDepositAmounts("XYZ", wethDepositAmount)
+                      ).to.be.revertedWith("Pool__InvalidTicker")
+                  })
+              })
+          })
+
           // GetUserAccountData
           describe("getUserAccountData", function () {
               describe("valid", function () {
