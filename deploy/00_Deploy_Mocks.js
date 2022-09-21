@@ -29,16 +29,16 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
             log: true,
             args: [DECIMALS, INITIAL_PRICE],
         })
-        await deploy("VRFCoordinatorV2Mock", {
-            from: deployer,
-            log: true,
-            args: [BASE_FEE, GAS_PRICE_LINK],
-        })
-        await deploy("MockOracle", {
-            from: deployer,
-            log: true,
-            args: [linkToken.address],
-        })
+        // await deploy("VRFCoordinatorV2Mock", {
+        //     from: deployer,
+        //     log: true,
+        //     args: [BASE_FEE, GAS_PRICE_LINK],
+        // })
+        // await deploy("MockOracle", {
+        //     from: deployer,
+        //     log: true,
+        //     args: [linkToken.address],
+        // })
         log("Mocks Deployed!")
         log("----------------------------------------------------")
         log("You are deploying to a local network, you'll need a local network running to interact")

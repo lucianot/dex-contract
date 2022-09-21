@@ -4,7 +4,7 @@ require("hardhat-deploy")
 require("solidity-coverage")
 require("hardhat-gas-reporter")
 require("hardhat-contract-sizer")
-require("./tasks")
+// require("./tasks")
 require("@appliedblockchain/chainlink-plugins-fund-link")
 require("dotenv").config()
 
@@ -95,10 +95,10 @@ module.exports = {
         noColors: true,
         // coinmarketcap: process.env.COINMARKETCAP_API_KEY,
     },
-    contractSizer: {
-        runOnCompile: false,
-        only: ["APIConsumer", "KeepersCounter", "PriceConsumerV3", "RandomNumberConsumerV2"],
-    },
+    // contractSizer: {
+    //     runOnCompile: false,
+    //     only: ["APIConsumer", "KeepersCounter", "PriceConsumerV3", "RandomNumberConsumerV2"],
+    // },
     namedAccounts: {
         deployer: {
             default: 0, // here this will by default take the first account as deployer
@@ -106,9 +106,6 @@ module.exports = {
         },
         sender: {
             default: 1,
-        },
-        feeCollector: {
-            default: 2,
         },
     },
     solidity: {
