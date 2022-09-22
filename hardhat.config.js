@@ -4,8 +4,6 @@ require("hardhat-deploy")
 require("solidity-coverage")
 require("hardhat-gas-reporter")
 require("hardhat-contract-sizer")
-// require("./tasks")
-require("@appliedblockchain/chainlink-plugins-fund-link")
 require("dotenv").config()
 
 /**
@@ -16,6 +14,10 @@ const MAINNET_RPC_URL =
     process.env.MAINNET_RPC_URL ||
     process.env.ALCHEMY_MAINNET_RPC_URL ||
     "https://eth-mainnet.alchemyapi.io/v2/your-api-key"
+const GOERLI_RPC_URL =
+    process.env.GOERLI_RPC_URL ||
+    process.env.ALCHEMY_GOERLI_RPC_URL ||
+    "https://eth-goerli.alchemyapi.io/v2/your-api-key"
 const RINKEBY_RPC_URL =
     process.env.RINKEBY_RPC_URL || "https://eth-rinkeby.alchemyapi.io/v2/your-api-key"
 const KOVAN_RPC_URL = process.env.KOVAN_RPC_URL || "https://eth-kovan.alchemyapi.io/v2/your-api-key"
@@ -45,6 +47,12 @@ module.exports = {
         },
         localhost: {
             chainId: 31337,
+        },
+        goerli: {
+            url: GOERLI_RPC_URL,
+            accounts: PRIVATE_KEY !== undefined ? [PRIVATE_KEY] : [],
+            saveDeployments: true,
+            chainId: 5,
         },
         kovan: {
             url: KOVAN_RPC_URL,
@@ -86,6 +94,7 @@ module.exports = {
             rinkeby: ETHERSCAN_API_KEY,
             kovan: ETHERSCAN_API_KEY,
             polygon: POLYGONSCAN_API_KEY,
+            goerli: ETHERSCAN_API_KEY,
         },
     },
     gasReporter: {
@@ -93,7 +102,7 @@ module.exports = {
         currency: "USD",
         outputFile: "gas-report.txt",
         noColors: true,
-        // coinmarketcap: process.env.COINMARKETCAP_API_KEY,
+        coinmarketcap: process.env.COINMARKETCAP_API_KEY,
     },
     // contractSizer: {
     //     runOnCompile: false,
@@ -122,6 +131,6 @@ module.exports = {
         ],
     },
     mocha: {
-        timeout: 200000, // 200 seconds max for running tests
+        timeout: 2000000, // 200 seconds max for running tests
     },
 }

@@ -3,7 +3,7 @@ const { network, deployments, ethers } = require("hardhat")
 const { utils } = require("ethers")
 const { developmentChains } = require("../../helper-hardhat-config")
 
-!developmentChains.includes(network.name)
+developmentChains.includes(network.name)
     ? describe.skip
     : describe("Pool", function () {
           let pool, weth, usdc, deployer, sender, mockV3Aggregator, usdcEthLatestPrice

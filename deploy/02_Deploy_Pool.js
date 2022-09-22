@@ -19,7 +19,7 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
         const UsdcEthAggregator = await deployments.get("MockV3Aggregator")
         UsdcEthPriceFeedAddress = UsdcEthAggregator.address
     } else {
-        UsdcEthPriceFeedAddress = networkConfig[chainId]["UsdcEthPriceFeed"]
+        UsdcEthPriceFeedAddress = networkConfig[chainId]["usdcEthPriceFeed"]
     }
 
     if (developmentChains.includes(network.name)) {
@@ -28,8 +28,8 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
         lpTokenAddress = (await deployments.get("LiquidityPoolToken")).address
         waitBlockConfirmations = 1
     } else {
-        wethAddress = networkConfig[chainId]["WethToken"]
-        usdcAddress = networkConfig[chainId]["UsdcToken"]
+        wethAddress = networkConfig[chainId]["wethToken"]
+        usdcAddress = networkConfig[chainId]["usdcToken"]
         lpTokenAddress = (await deployments.get("LiquidityPoolToken")).address
         waitBlockConfirmations = VERIFICATION_BLOCK_CONFIRMATIONS
     }

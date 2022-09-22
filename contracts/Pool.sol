@@ -50,7 +50,12 @@ contract Pool is Ownable {
 
     /* Functions */
 
-    // deposit into liquidity pool
+    /*
+     * @notice Deposit into liquidity pool
+     * @param tokenAmount The amount of tokens to deposit
+     * @param tokenTicker The ticker of the token to deposit
+     * @return bool Whether the deposit was successful
+     */
     function deposit(uint256 tokenAmount, string memory tokenTicker) public returns (bool) {
         uint256 usdcAmount;
         uint256 wethAmount;
@@ -77,7 +82,12 @@ contract Pool is Ownable {
         return true;
     }
 
-    // withdraw from liquidity pool
+    /*
+     * @notice Withdraw from liquidity pool
+     * @param percentOfDepositToWithdraw Percentage of stake to withdraw from pool
+     * @return bool Whether the withdrawal was successful
+     * @dev percentOfDepositToWithdraw must be between 0 and 100
+     */
     function withdraw(uint256 percentOfDepositToWithdraw) public returns (bool) {
         // revert if percent is greater than 100
         if (percentOfDepositToWithdraw > (100 * 1e18)) {
@@ -114,7 +124,12 @@ contract Pool is Ownable {
         return true;
     }
 
-    // swap tokens
+    /*
+     * @notice Swap tokens
+     * @param sendTokenAmount The amount of tokens to send to Pool
+     * @param sendTokenTicker The ticker of the token to send
+     * @return bool Whether the swap was successful
+     */
     function swap(uint256 sendTokenAmount, string memory sendTokenTicker) public returns (bool) {
         IERC20 sendToken;
         IERC20 receiveToken;
@@ -136,7 +151,13 @@ contract Pool is Ownable {
         return true;
     }
 
-    // Calculates the amount of tokens to deposit based on oracle price
+    /*
+     * @notice Calculates the amount of tokens to deposit based on oracle price
+     * @param tokenTicker The ticker of the token to send
+     * @param tokenAmount The amount of tokens to send to Pool
+     * @return wethAmount Amount of WETH to deposit
+     * @return usdcAmount Amount of USDC to deposit
+     */
     function getDepositAmounts(string memory tokenTicker, uint256 tokenAmount)
         public
         view
@@ -161,7 +182,14 @@ contract Pool is Ownable {
         return (wethAmount, usdcAmount);
     }
 
-    // Calculates the amount of receive tokens and intrinsic swap price
+    /*
+     * @notice Calculates the amount of receive tokens and intrinsic swap price
+     * @param sendTokenTicker The ticker of the token to send to Pool
+     * @param sendTokenAmount The amount of tokens to send to Pool
+     * @return receiveTokenAmount Amount of tokens to receive from Pool
+     * @return swapPrice Implied swap price based on pricing curve
+     * @dev Calculation is based on: x * y = k
+     */
     function getSwapData(string memory sendTokenTicker, uint256 sendTokenAmount)
         public
         view
@@ -198,7 +226,13 @@ contract Pool is Ownable {
         return (receiveTokenAmount, swapPrice);
     }
 
-    // get sender's balances
+    /*
+     * @notice Get user's current balances
+     * @param user User address
+     * @return shareOfPool Percentage of pool liquidity owned by user
+     * @return wethShare Amount of WETH in Pool owned by user
+     * @return usdcShare Amount of USDC in Pool owned by user
+     */
     function getUserAccountData(address user)
         public
         view
@@ -221,16 +255,36 @@ contract Pool is Ownable {
         return (shareOfPool, wethShare, usdcShare);
     }
 
+    /*
+     * @notice Get current price constant
+     * @return Constant
+     */
     function getPriceConstant() public view returns (uint256) {
         return s_priceConstant;
     }
 
+    /*
+     * @notice Get instance of WETH token
+     * @return Instance of WETH token
+     */
     function getWethToken() public view returns (IERC20) {
         return i_wethToken;
     }
 
+    /*
+     * @notice Get instance of USDC token
+     * @return Instance of USDC token
+     */
     function getUsdcToken() public view returns (IERC20) {
         return i_usdcToken;
+    }
+
+    /*
+     * @notice Get latest price from oracle
+     * @return Latest price from oracle
+     */
+    function getLatestOraclePrice() public view returns (int256) {
+        return _getLatestPrice();
     }
 
     /* Internal Functions */
