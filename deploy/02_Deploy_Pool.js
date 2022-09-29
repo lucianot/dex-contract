@@ -29,7 +29,10 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
         waitBlockConfirmations = 1
     } else {
         wethAddress = networkConfig[chainId]["wethToken"]
-        usdcAddress = networkConfig[chainId]["usdcToken"]
+        usdcAddress =
+            chainId == 5
+                ? (await deployments.get("UsdcToken")).address
+                : networkConfig[chainId]["usdcToken"]
         lpTokenAddress = (await deployments.get("LiquidityPoolToken")).address
         waitBlockConfirmations = VERIFICATION_BLOCK_CONFIRMATIONS
     }
@@ -45,14 +48,19 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
 
     // Verify the deployment
     if (!developmentChains.includes(network.name) && process.env.ETHERSCAN_API_KEY) {
-        log("Verifying...")
+        log("Verifying Pool...")
         await verify(pool.address, arguments)
     }
 
     // Grant minter and burner role to the pool
-    const lpToken = await ethers.getContract("LiquidityPoolToken", deployer)
-    await lpToken.grantRole(await lpToken.MINTER_ROLE(), pool.address)
-    await lpToken.grantRole(await lpToken.BURNER_ROLE(), pool.address)
+    const LpToken = await deployments.get("LiquidityPoolToken")
+    const lpToken = await ethers.getContractAt("LiquidityPoolToken", LpToken.address)
+    const minterRole = await lpToken.MINTER_ROLE()
+    const burnerRole = await lpToken.BURNER_ROLE()
+    const tx1 = await lpToken.grantRole(minterRole, pool.address)
+    tx1.wait(6)
+    const tx2 = await lpToken.grantRole(burnerRole, pool.address)
+    tx2.wait(6)
 }
 
 module.exports.tags = ["all", "pool", "main"]

@@ -53,6 +53,8 @@ module.exports = {
             accounts: PRIVATE_KEY !== undefined ? [PRIVATE_KEY] : [],
             saveDeployments: true,
             chainId: 5,
+            gas: 2100000,
+            gasPrice: 8000000000,
         },
         kovan: {
             url: KOVAN_RPC_URL,
@@ -131,6 +133,6 @@ module.exports = {
         ],
     },
     mocha: {
-        timeout: 2000000, // 200 seconds max for running tests
+        timeout: 200000, // 200 seconds max for running tests
     },
 }

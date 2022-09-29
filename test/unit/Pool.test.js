@@ -43,7 +43,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
 
               // connect to mock oracle and update price
               mockV3Aggregator = await ethers.getContract("MockV3Aggregator", deployer)
-              usdcEthLatestPrice = utils.parseEther("0.0005") // ETH = 2_000 USDC
+              usdcEthLatestPrice = utils.parseUnits("2000", 8) // 2 * 1e8
               await mockV3Aggregator.updateAnswer(usdcEthLatestPrice)
           })
 
@@ -213,7 +213,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
               describe("invalid", function () {
                   it("reverts if withdrawal percentage is too big", async function () {
                       await expect(
-                          pool.connect(sender).withdraw(utils.parseEther("100.0001"))
+                          pool.connect(sender).withdraw(utils.parseEther("1.0001"))
                       ).to.revertedWith("Pool__InvalidWithdrawPercentage")
                   })
               })
@@ -350,12 +350,8 @@ const { developmentChains } = require("../../helper-hardhat-config")
 
           // GetDepositAmounts
           describe("getDepositAmounts", function () {
-              let wethDepositAmount
-
-              beforeEach(async function () {
-                  await setupDepositFrom(yieldFarmer, "10", "20000", true)
-                  wethDepositAmount = utils.parseEther("2")
-              })
+              const wethDepositAmount = utils.parseEther("2")
+              const usdcDepositAmount = utils.parseEther("4000")
 
               describe("valid", function () {
                   it("returns the correct amount of WETH", async function () {
@@ -372,6 +368,22 @@ const { developmentChains } = require("../../helper-hardhat-config")
                           wethDepositAmount
                       )
                       assert.equal(usdcAmount.toString(), utils.parseEther("4000").toString())
+                  })
+
+                  it("returns the correct amount of WETH", async function () {
+                      const [wethAmount, _] = await pool.getDepositAmounts(
+                          "USDC",
+                          usdcDepositAmount
+                      )
+                      assert.equal(wethAmount.toString(), utils.parseEther("2").toString())
+                  })
+
+                  it("returns the correct amount of USDC", async function () {
+                      const [_, usdcAmount] = await pool.getDepositAmounts(
+                          "USDC",
+                          usdcDepositAmount
+                      )
+                      assert.equal(usdcAmount.toString(), usdcDepositAmount.toString())
                   })
               })
 

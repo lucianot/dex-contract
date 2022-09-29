@@ -90,7 +90,7 @@ contract Pool is Ownable {
      */
     function withdraw(uint256 percentOfDepositToWithdraw) public returns (bool) {
         // revert if percent is greater than 100
-        if (percentOfDepositToWithdraw > (100 * 1e18)) {
+        if (percentOfDepositToWithdraw > (1 * 1e18)) {
             revert Pool__InvalidWithdrawPercentage();
         }
 
@@ -169,12 +169,12 @@ contract Pool is Ownable {
 
         if (keccak256(abi.encodePacked(tokenTicker)) == keccak256(abi.encodePacked("WETH"))) {
             wethAmount = tokenAmount;
-            usdcAmount = (wethAmount * 1e18) / uint256(usdcEthOraclePrice);
+            usdcAmount = (wethAmount * uint256(usdcEthOraclePrice)) / 1e8;
         } else if (
             keccak256(abi.encodePacked(tokenTicker)) == keccak256(abi.encodePacked("USDC"))
         ) {
             usdcAmount = tokenAmount;
-            wethAmount = (usdcAmount * uint256(usdcEthOraclePrice)) / 1e18;
+            wethAmount = (usdcAmount * 1e8) / uint256(usdcEthOraclePrice);
         } else {
             revert Pool__InvalidTicker();
         }
@@ -253,6 +253,21 @@ contract Pool is Ownable {
         uint256 wethShare = (shareOfPool * i_wethToken.balanceOf(address(this))) / 1e18;
         uint256 usdcShare = (shareOfPool * i_usdcToken.balanceOf(address(this))) / 1e18;
         return (shareOfPool, wethShare, usdcShare);
+    }
+
+    // FOR TESTING ONLY
+    // Send all coins to owner and burn all liquidity tokens
+    function resetPool() public onlyOwner returns (bool) {
+        uint256 wethBalance = i_wethToken.balanceOf(address(this));
+        uint256 usdcBalance = i_usdcToken.balanceOf(address(this));
+        uint256 lpTokenBalance = i_lpToken.balanceOf(msg.sender);
+        i_wethToken.transfer(msg.sender, wethBalance);
+        i_usdcToken.transfer(msg.sender, usdcBalance);
+        i_lpToken.burn(msg.sender, lpTokenBalance);
+
+        uint256 poolLpTokenBalance = i_lpToken.balanceOf(address(this));
+        i_lpToken.burn(address(this), poolLpTokenBalance);
+        return true;
     }
 
     /*

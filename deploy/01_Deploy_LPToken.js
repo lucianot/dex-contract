@@ -2,8 +2,6 @@ const { getNamedAccounts, deployments, network, ethers } = require("hardhat")
 const { developmentChains, VERIFICATION_BLOCK_CONFIRMATIONS } = require("../helper-hardhat-config")
 const { verify } = require("../helper-functions")
 
-// const INITIAL_SUPPLY = ethers.utils.parseEther("1000000000")
-
 module.exports = async ({ getNamedAccounts, deployments }) => {
     const { deploy, log } = deployments
     const { deployer } = await getNamedAccounts()
@@ -23,7 +21,7 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
 
     // Verify the deployment
     if (!developmentChains.includes(network.name) && process.env.ETHERSCAN_API_KEY) {
-        log("Verifying...")
+        log("Verifying LpToken...")
         await verify(lpToken.address, arguments)
     }
 }
