@@ -5,6 +5,7 @@ import "./interfaces/IERC20.sol";
 import "./LiquidityPoolToken.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "hardhat/console.sol";
 
 error Pool__ReceiveBalanceZero();
 error Pool__InvalidTicker();
@@ -23,6 +24,8 @@ contract Pool is Ownable {
     IERC20 internal immutable i_usdcToken;
     LiquidityPoolToken internal immutable i_lpToken;
     AggregatorV3Interface internal immutable i_priceFeed;
+    uint256 internal immutable i_wethDecimals;
+    uint256 internal immutable i_usdcDecimals;
     uint256 internal s_priceConstant;
 
     /* Events */
@@ -37,12 +40,16 @@ contract Pool is Ownable {
         address _wethAddress,
         address _usdcAddress,
         address _lpTokenAddress,
-        address _priceFeed
+        address _priceFeed,
+        uint256 _wethDecimals,
+        uint256 _usdcDecimals
     ) {
         i_wethToken = IERC20(_wethAddress);
         i_usdcToken = IERC20(_usdcAddress);
         i_lpToken = LiquidityPoolToken(_lpTokenAddress);
         i_priceFeed = AggregatorV3Interface(_priceFeed);
+        i_wethDecimals = _wethDecimals;
+        i_usdcDecimals = _usdcDecimals;
     }
 
     /* Receive function (if exists) */
@@ -57,6 +64,7 @@ contract Pool is Ownable {
      * @return bool Whether the deposit was successful
      */
     function deposit(uint256 tokenAmount, string memory tokenTicker) public returns (bool) {
+        // TODO: add decimals calculation
         uint256 usdcAmount;
         uint256 wethAmount;
         uint256 wethInitialBalance = i_wethToken.balanceOf(address(this));
@@ -73,9 +81,7 @@ contract Pool is Ownable {
         _mintLiquidityPoolTokens(usdcAmount);
 
         // update the constant
-        s_priceConstant =
-            ((wethInitialBalance + wethAmount) * (usdcInitialBalance + usdcAmount)) /
-            1e18;
+        _updateConstant((wethInitialBalance + wethAmount), (usdcInitialBalance + usdcAmount));
 
         // emit event
         emit DepositCompleted();
@@ -115,9 +121,7 @@ contract Pool is Ownable {
         i_usdcToken.transfer(msg.sender, usdcAmount);
 
         // update the constant
-        s_priceConstant =
-            ((wethInitialBalance - wethAmount) * (usdcInitialBalance - usdcAmount)) /
-            1e18;
+        _updateConstant((wethInitialBalance - wethAmount), (usdcInitialBalance - usdcAmount));
 
         // emit event
         emit WithdrawCompleted();
@@ -136,7 +140,7 @@ contract Pool is Ownable {
         uint256 receiveTokenAmount;
 
         // set the correct addresses for tokens
-        (sendToken, receiveToken) = _getTokens(sendTokenTicker);
+        (sendToken, receiveToken, , ) = _getTokens(sendTokenTicker);
 
         // calculate the equivalent amount of receive token
         (receiveTokenAmount, ) = getSwapData(sendTokenTicker, sendTokenAmount);
@@ -169,12 +173,16 @@ contract Pool is Ownable {
 
         if (keccak256(abi.encodePacked(tokenTicker)) == keccak256(abi.encodePacked("WETH"))) {
             wethAmount = tokenAmount;
-            usdcAmount = (wethAmount * uint256(usdcEthOraclePrice)) / 1e8;
+            usdcAmount =
+                (wethAmount * uint256(usdcEthOraclePrice)) /
+                (10**(8 + i_wethDecimals - i_usdcDecimals));
         } else if (
             keccak256(abi.encodePacked(tokenTicker)) == keccak256(abi.encodePacked("USDC"))
         ) {
             usdcAmount = tokenAmount;
-            wethAmount = (usdcAmount * 1e8) / uint256(usdcEthOraclePrice);
+            wethAmount =
+                (usdcAmount * (10**(8 + i_wethDecimals - i_usdcDecimals))) /
+                uint256(usdcEthOraclePrice);
         } else {
             revert Pool__InvalidTicker();
         }
@@ -197,11 +205,13 @@ contract Pool is Ownable {
     {
         IERC20 sendToken;
         IERC20 receiveToken;
+        uint256 sendDecimals;
+        uint256 receiveDecimals;
         uint256 receiveTokenAmount;
         uint256 swapPrice;
 
         // select the correct send and receive tokens
-        (sendToken, receiveToken) = _getTokens(sendTokenTicker);
+        (sendToken, receiveToken, sendDecimals, receiveDecimals) = _getTokens(sendTokenTicker);
 
         // get current contract balance for each token
         uint256 sendTokenBalance = sendToken.balanceOf(address(this));
@@ -217,11 +227,19 @@ contract Pool is Ownable {
             sendTokenAmount,
             sendTokenBalance,
             receiveTokenBalance,
-            s_priceConstant
+            s_priceConstant,
+            sendDecimals,
+            receiveDecimals
         );
 
         // calculate the swap price
-        swapPrice = (receiveTokenAmount * 1e18) / sendTokenAmount;
+        swapPrice = _calculateSwapPrice(
+            sendTokenAmount,
+            receiveTokenAmount,
+            sendDecimals,
+            receiveDecimals
+        );
+        // swapPrice = (receiveTokenAmount * 1e18) / sendTokenAmount;
 
         return (receiveTokenAmount, swapPrice);
     }
@@ -295,6 +313,22 @@ contract Pool is Ownable {
     }
 
     /*
+     * @notice Get decimals for WETH token
+     * @return Decimals
+     */
+    function getWethDecimals() public view returns (uint256) {
+        return i_wethDecimals;
+    }
+
+    /*
+     * @notice Get decimals for USDC token
+     * @return Decimals
+     */
+    function getUsdcDecimals() public view returns (uint256) {
+        return i_usdcDecimals;
+    }
+
+    /*
      * @notice Get latest price from oracle
      * @return Latest price from oracle
      */
@@ -309,17 +343,35 @@ contract Pool is Ownable {
         uint256 sendTokenAmount,
         uint256 sendTokenBalance,
         uint256 receiveTokenBalance,
-        uint256 k
+        uint256 k,
+        uint256 sendDecimals,
+        uint256 receiveDecimals
     ) public pure returns (uint256) {
-        int256 receiveTokenAmount = (int256(k * 1e18) /
-            int256(sendTokenBalance + sendTokenAmount)) - int256(receiveTokenBalance);
+        // normalize decimals to 18
+        int256 newSendBalance = int256(
+            (sendTokenBalance + sendTokenAmount) * 10**(18 - sendDecimals)
+        );
+        int256 receiveBalance = int256(receiveTokenBalance * 10**(18 - receiveDecimals));
+        int256 receiveTokenAmount = (int256(k) / newSendBalance - receiveBalance) * -1;
+        return uint256(receiveTokenAmount) / 10**(18 - receiveDecimals);
+    }
 
-        return uint256(receiveTokenAmount * -1);
+    // Pricing formula for swapping tokens in pool
+    function _calculateSwapPrice(
+        uint256 sendTokenAmount,
+        uint256 receiveTokenAmount,
+        uint256 sendDecimals,
+        uint256 receiveDecimals
+    ) public pure returns (uint256) {
+        // normalize price to 18 decimals
+        return
+            ((receiveTokenAmount * 1e18 * 10**sendDecimals) / sendTokenAmount) /
+            10**receiveDecimals;
     }
 
     // Mint liquidity tokens to depositor
     function _mintLiquidityPoolTokens(uint256 usdcAmount) public returns (bool) {
-        uint256 lpTokenAmount = usdcAmount * 2;
+        uint256 lpTokenAmount = usdcAmount * 2 * 1e12;
         i_lpToken.mint(msg.sender, lpTokenAmount);
         return true;
     }
@@ -337,20 +389,41 @@ contract Pool is Ownable {
     }
 
     // Gets token addresses
-    function _getTokens(string memory sendTicker) public view returns (IERC20, IERC20) {
+    function _getTokens(string memory sendTicker)
+        public
+        view
+        returns (
+            IERC20,
+            IERC20,
+            uint256,
+            uint256
+        )
+    {
         IERC20 sendToken;
         IERC20 receiveToken;
+        uint256 sendDecimals;
+        uint256 receiveDecimals;
 
         if (keccak256(abi.encodePacked(sendTicker)) == keccak256(abi.encodePacked("WETH"))) {
             sendToken = i_wethToken;
             receiveToken = i_usdcToken;
+            sendDecimals = i_wethDecimals;
+            receiveDecimals = i_usdcDecimals;
         } else if (keccak256(abi.encodePacked(sendTicker)) == keccak256(abi.encodePacked("USDC"))) {
             sendToken = i_usdcToken;
             receiveToken = i_wethToken;
+            sendDecimals = i_usdcDecimals;
+            receiveDecimals = i_wethDecimals;
         } else {
             revert Pool__InvalidTicker();
         }
 
-        return (sendToken, receiveToken);
+        return (sendToken, receiveToken, sendDecimals, receiveDecimals);
+    }
+
+    // Updates constant
+    function _updateConstant(uint256 wethBalance, uint256 usdcBalance) public returns (bool) {
+        s_priceConstant = wethBalance * usdcBalance * 10**(36 - i_wethDecimals - i_usdcDecimals);
+        return true;
     }
 }

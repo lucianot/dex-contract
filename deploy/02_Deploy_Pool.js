@@ -36,9 +36,18 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
         lpTokenAddress = (await deployments.get("LiquidityPoolToken")).address
         waitBlockConfirmations = VERIFICATION_BLOCK_CONFIRMATIONS
     }
+    const wethDecimals = networkConfig[chainId]["wethDecimals"] || 18
+    const usdcDecimals = networkConfig[chainId]["usdcDecimals"] || 6
 
     log("----------------------------------------------------")
-    const arguments = [wethAddress, usdcAddress, lpTokenAddress, UsdcEthPriceFeedAddress]
+    const arguments = [
+        wethAddress,
+        usdcAddress,
+        lpTokenAddress,
+        UsdcEthPriceFeedAddress,
+        wethDecimals,
+        usdcDecimals,
+    ]
     const pool = await deploy("Pool", {
         from: deployer,
         args: arguments,
