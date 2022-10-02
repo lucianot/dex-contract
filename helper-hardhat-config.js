@@ -12,7 +12,7 @@ const networkConfig = {
         usdcToken: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
         usdcEthPriceFeed: "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4",
         wethDecimals: 18,
-        usdcDecimals: 6,
+        usdcDecimals: 8,
     },
     5: {
         name: "goerli",
@@ -20,7 +20,7 @@ const networkConfig = {
         // usdcToken: "0xde637d4c445ca2aae8f782ffac8d2971b93a4998",
         usdcEthPriceFeed: "0xD4a33860578De61DBAbDc8BFdb98FD742fA7028e",
         wethDecimals: 18,
-        usdcDecimals: 6,
+        usdcDecimals: 8,
     },
     137: {
         name: "polygon",

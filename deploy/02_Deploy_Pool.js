@@ -37,7 +37,7 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
         waitBlockConfirmations = VERIFICATION_BLOCK_CONFIRMATIONS
     }
     const wethDecimals = networkConfig[chainId]["wethDecimals"] || 18
-    const usdcDecimals = networkConfig[chainId]["usdcDecimals"] || 6
+    const usdcDecimals = networkConfig[chainId]["usdcDecimals"] || 8
 
     log("----------------------------------------------------")
     const arguments = [

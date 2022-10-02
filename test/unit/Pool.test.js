@@ -382,8 +382,8 @@ const { developmentChains } = require("../../helper-hardhat-config")
               let wethDepositAmount, usdcDepositAmount
 
               beforeEach(async function () {
-                  wethDepositAmount = utils.parseUnits("2", wethDecimals)
-                  usdcDepositAmount = utils.parseUnits("4000", usdcDecimals)
+                  wethDepositAmount = utils.parseUnits("0.2", wethDecimals)
+                  usdcDepositAmount = utils.parseUnits("400", usdcDecimals)
               })
 
               describe("valid", function () {

@@ -35,7 +35,9 @@ developmentChains.includes(network.name)
 
                   // get decimals
                   wethDecimals = await pool.getWethDecimals()
+                  console.log("WETH decimals: ", wethDecimals.toString())
                   usdcDecimals = await pool.getUsdcDecimals()
+                  console.log("USDC decimals: ", usdcDecimals.toString())
 
                   // reset all balances
                   console.log("Resetting all balances...")

@@ -173,8 +173,8 @@ contract Pool is Ownable {
         if (keccak256(abi.encodePacked(tokenTicker)) == keccak256(abi.encodePacked("WETH"))) {
             wethAmount = tokenAmount;
             usdcAmount =
-                (((wethAmount * uint256(usdcEthOraclePrice)) / 10**8) / 10**i_wethDecimals) *
-                10**i_usdcDecimals;
+                (((wethAmount * uint256(usdcEthOraclePrice)) * 10**i_usdcDecimals) / 10**8) /
+                10**i_wethDecimals;
         } else if (
             keccak256(abi.encodePacked(tokenTicker)) == keccak256(abi.encodePacked("USDC"))
         ) {
