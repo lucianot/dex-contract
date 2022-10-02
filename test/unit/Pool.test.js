@@ -95,7 +95,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
 
                   it("mints LP tokens to depositor", async function () {
                       await pool.connect(sender).deposit(wethAmount, "WETH")
-                      const expected = utils.parseEther("8000")
+                      const expected = utils.parseUnits("8000", 18)
                       const actual = await lpToken.balanceOf(sender.address)
                       assert.equal(actual.toString(), expected.toString())
                   })
@@ -178,18 +178,17 @@ const { developmentChains } = require("../../helper-hardhat-config")
                   let percentOfDepositToWithdraw
 
                   beforeEach(async function () {
-                      //   const usdcAmount = utils.parseEther("4000") // 4_000 USDC
                       // deposit into Pool 10 WETH, 20_000 USDC
                       await setupDepositFrom(yieldFarmer, "10", "20000", true)
                       // fund sender with tokens
                       await setupDepositFrom(sender, "2", "4000", true)
                       // Approve pool to burn lpTokens
-                      percentOfDepositToWithdraw = utils.parseEther("0.6")
+                      percentOfDepositToWithdraw = utils.parseUnits("0.6", 18)
                   })
 
                   it("burns the depositor liquidity pool tokens", async function () {
                       await pool.connect(sender).withdraw(percentOfDepositToWithdraw)
-                      const expected = utils.parseEther("3200")
+                      const expected = utils.parseUnits("3200", 18)
                       const actual = await lpToken.balanceOf(sender.address)
                       assert.equal(actual.toString(), expected.toString())
                   })
@@ -225,7 +224,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
               describe("invalid", function () {
                   it("reverts if withdrawal percentage is too big", async function () {
                       await expect(
-                          pool.connect(sender).withdraw(utils.parseEther("1.0001"))
+                          pool.connect(sender).withdraw(utils.parseUnits("1.0001", 18))
                       ).to.revertedWith("Pool__InvalidWithdrawPercentage")
                   })
               })
@@ -233,14 +232,21 @@ const { developmentChains } = require("../../helper-hardhat-config")
 
           // Swap
           describe("swap", function () {
-              const sendTokenAmount = utils.parseUnits("2", wethDecimals) // 2 WETH
+              let sendTokenAmount
 
               describe("valid", function () {
                   beforeEach(async function () {
+                      sendTokenAmount = utils.parseUnits("2", wethDecimals) // 2 WETH
+
                       // deposit into Pool
                       await setupDepositFrom(yieldFarmer, "10", "20000", true)
+
                       // fund sender with WETH
-                      await setupTransferTo(sender.address, utils.formatEther(sendTokenAmount), "0")
+                      await setupTransferTo(
+                          sender.address,
+                          utils.formatUnits(sendTokenAmount, wethDecimals),
+                          "0"
+                      )
                       // approve Pool contract to spend sender's WETH
                       await weth.connect(sender).approve(pool.address, sendTokenAmount)
                   })
@@ -255,14 +261,17 @@ const { developmentChains } = require("../../helper-hardhat-config")
                   it("transfers the correct amount of receive tokens to sender", async function () {
                       await pool.connect(sender).swap(sendTokenAmount, "WETH")
                       const actualBalance = await usdc.balanceOf(sender.getAddress())
-                      const expectedBalance = utils.parseUnits("3333.333333", usdcDecimals)
-                      assert.equal(actualBalance.toString(), expectedBalance.toString())
+                      const expected = BigNumber.from(10000)
+                          .mul(BigNumber.from(10).pow(usdcDecimals))
+                          .div(3)
+                      assert.equal(actualBalance.div(10).toString(), expected.div(10).toString())
                   })
 
                   it("emits event", async function () {
-                      await expect(pool.connect(sender).swap(sendTokenAmount, "WETH"))
-                          .to.emit(pool, "SwapCompleted")
-                          .withArgs(utils.parseUnits("3333.333333", usdcDecimals))
+                      await expect(pool.connect(sender).swap(sendTokenAmount, "WETH")).to.emit(
+                          pool,
+                          "SwapCompleted"
+                      )
                   })
               })
 
@@ -294,7 +303,11 @@ const { developmentChains } = require("../../helper-hardhat-config")
                       // fund pool with tokens
                       await setupTransferTo(pool.address, "10", "16000") // 10 WETH, 16_000 USDC
                       // fund sender with WETH
-                      await setupTransferTo(sender.address, utils.formatEther(sendTokenAmount), "0")
+                      await setupTransferTo(
+                          sender.address,
+                          utils.formatUnits(sendTokenAmount, wethDecimals),
+                          "0"
+                      )
                       // do not approve Pool contract to spend sender's WETH
                       await expect(
                           pool.connect(sender).swap(sendTokenAmount, "WETH")
@@ -305,7 +318,11 @@ const { developmentChains } = require("../../helper-hardhat-config")
                       // fund pool with tokens
                       await setupTransferTo(pool.address, "10", "16000") // 10 WETH, 16_000 USDC
                       // fund sender with WETH
-                      await setupTransferTo(sender.address, utils.formatEther(sendTokenAmount), "0")
+                      await setupTransferTo(
+                          sender.address,
+                          utils.formatUnits(sendTokenAmount, wethDecimals),
+                          "0"
+                      )
                       // do not approve Pool contract to spend sender's WETH
                       await expect(
                           pool.connect(sender).swap(sendTokenAmount, "XYZ")
@@ -330,7 +347,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
 
                   it("returns the correct price of USDC/ETH", async function () {
                       const wethAmount = utils.parseUnits("6", wethDecimals)
-                      const expected = utils.parseEther("1250")
+                      const expected = utils.parseUnits("1250", 18)
                       const actual = await pool.getSwapData("WETH", wethAmount)
                       assert.equal(actual[1].toString(), expected.toString())
                   })
@@ -344,7 +361,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
 
                   it("returns the correct price of ETH/USDC", async function () {
                       const usdcAmount = utils.parseUnits("5000", usdcDecimals)
-                      const expected = utils.parseEther("0.0004")
+                      const expected = utils.parseUnits("0.0004", 18)
                       const actual = await pool.getSwapData("USDC", usdcAmount)
                       assert.equal(actual[1].toString(), expected.toString())
                   })
@@ -362,11 +379,15 @@ const { developmentChains } = require("../../helper-hardhat-config")
 
           // GetDepositAmounts
           describe("getDepositAmounts", function () {
-              const wethDepositAmount = utils.parseUnits("2", 18)
-              const usdcDepositAmount = utils.parseUnits("4000", 6)
+              let wethDepositAmount, usdcDepositAmount
+
+              beforeEach(async function () {
+                  wethDepositAmount = utils.parseUnits("2", wethDecimals)
+                  usdcDepositAmount = utils.parseUnits("4000", usdcDecimals)
+              })
 
               describe("valid", function () {
-                  it("returns the correct amount of WETH", async function () {
+                  it("send WETH, returns the correct amount of WETH", async function () {
                       const [wethAmount, _] = await pool.getDepositAmounts(
                           "WETH",
                           wethDepositAmount
@@ -374,7 +395,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
                       assert.equal(wethAmount.toString(), wethDepositAmount.toString())
                   })
 
-                  it("returns the correct amount of USDC", async function () {
+                  it("send WETH, returns the correct amount of USDC", async function () {
                       const [_, usdcAmount] = await pool.getDepositAmounts(
                           "WETH",
                           wethDepositAmount
@@ -382,7 +403,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
                       assert.equal(usdcAmount.toString(), usdcDepositAmount.toString())
                   })
 
-                  it("returns the correct amount of WETH", async function () {
+                  it("send USDC, returns the correct amount of WETH", async function () {
                       const [wethAmount, _] = await pool.getDepositAmounts(
                           "USDC",
                           usdcDepositAmount
@@ -390,7 +411,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
                       assert.equal(wethAmount.toString(), wethDepositAmount.toString())
                   })
 
-                  it("returns the correct amount of USDC", async function () {
+                  it("send USDC, returns the correct amount of USDC", async function () {
                       const [_, usdcAmount] = await pool.getDepositAmounts(
                           "USDC",
                           usdcDepositAmount
@@ -417,7 +438,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
                   })
 
                   it("returns the user's share of pool", async function () {
-                      const expected = utils.parseEther("0.2")
+                      const expected = utils.parseUnits("0.2", 18)
                       const actual = await pool.getUserAccountData(sender.address)
                       assert.equal(actual[0].toString(), expected.toString())
                   })
@@ -456,7 +477,9 @@ const { developmentChains } = require("../../helper-hardhat-config")
                   const sendBalance = utils.parseUnits("10", wethDecimals)
                   const receiveBalance = utils.parseUnits("16000", usdcDecimals)
                   const k = utils.parseUnits("160000", 36)
-                  const expected = utils.parseUnits("2666.666666", usdcDecimals)
+                  const expected = BigNumber.from(8000)
+                      .mul(BigNumber.from(10).pow(usdcDecimals))
+                      .div(3)
                   const actual = await pool._calculateSwapAmount(
                       sendAmount,
                       sendBalance,
@@ -465,7 +488,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
                       wethDecimals,
                       usdcDecimals
                   )
-                  assert.equal(actual.toString(), expected.toString())
+                  assert.equal(actual.div(10).toString(), expected.div(10).toString())
               })
 
               it("returns the correct amount to swap - USDC", async function () {
@@ -473,7 +496,9 @@ const { developmentChains } = require("../../helper-hardhat-config")
                   const sendBalance = utils.parseUnits("200", usdcDecimals)
                   const receiveBalance = utils.parseUnits("200", wethDecimals)
                   const k = utils.parseUnits("40000", 36)
-                  const expected = utils.parseUnits("33.333333333333333334", wethDecimals)
+                  const expected = BigNumber.from(100)
+                      .mul(BigNumber.from(10).pow(wethDecimals))
+                      .div(3)
                   const actual = await pool._calculateSwapAmount(
                       sendAmount,
                       sendBalance,
@@ -482,7 +507,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
                       usdcDecimals,
                       wethDecimals
                   )
-                  assert.equal(actual.toString(), expected.toString())
+                  assert.equal(actual.div(10).toString(), expected.div(10).toString())
               })
           })
 
@@ -490,10 +515,16 @@ const { developmentChains } = require("../../helper-hardhat-config")
           describe("_calculateSwapPrice", function () {
               it("returns the correct swap price - WETH", async function () {
                   const sendAmount = utils.parseUnits("2", wethDecimals)
-                  const receiveAmount = utils.parseUnits("2666.666666", usdcDecimals)
-                  const sendDecimals = 18
-                  const receiveDecimals = 6
-                  const expected = utils.parseUnits("1333.333333", wethDecimals)
+                  const receiveAmount = BigNumber.from(8000)
+                      .mul(BigNumber.from(10).pow(usdcDecimals))
+                      .div(3) // 2666.666666
+                  const sendDecimals = wethDecimals
+                  const receiveDecimals = usdcDecimals
+                  const expected = receiveAmount
+                      .mul(BigNumber.from(10).pow(18))
+                      .mul(BigNumber.from(10).pow(sendDecimals))
+                      .div(sendAmount)
+                      .div(BigNumber.from(10).pow(receiveDecimals))
                   const actual = await pool._calculateSwapPrice(
                       sendAmount,
                       receiveAmount,
@@ -504,11 +535,18 @@ const { developmentChains } = require("../../helper-hardhat-config")
               })
 
               it("returns the correct swap price - USDC", async function () {
-                  const sendAmount = utils.parseUnits("2666.666666", usdcDecimals)
+                  const sendAmount = BigNumber.from(8000)
+                      .mul(BigNumber.from(10).pow(usdcDecimals))
+                      .div(3) // 2666.666666
                   const receiveAmount = utils.parseUnits("2", wethDecimals)
-                  const sendDecimals = 6
-                  const receiveDecimals = 18
-                  const expected = utils.parseUnits("0.0007500000001875", wethDecimals)
+                  const sendDecimals = wethDecimals
+                  const receiveDecimals = usdcDecimals
+                  const expected = receiveAmount
+                      .mul(BigNumber.from(10).pow(18))
+                      .mul(BigNumber.from(10).pow(sendDecimals))
+                      .div(sendAmount)
+                      .div(BigNumber.from(10).pow(receiveDecimals))
+                  //   const expected = BigNumber.from(3).mul(BigNumber.from(10).pow(18)).div(4000) // 0.00075
                   const actual = await pool._calculateSwapPrice(
                       sendAmount,
                       receiveAmount,
@@ -524,7 +562,10 @@ const { developmentChains } = require("../../helper-hardhat-config")
               it("mints the correct amount of liquidity pool tokens", async function () {
                   const usdcAmount = utils.parseUnits("2000", usdcDecimals)
                   await pool.connect(sender)._mintLiquidityPoolTokens(usdcAmount)
-                  const expected = usdcAmount.mul(2).mul(10 ** (18 - usdcDecimals))
+                  const expected = usdcAmount
+                      .mul(2)
+                      .mul(BigNumber.from(10).pow(18))
+                      .div(BigNumber.from(10).pow(usdcDecimals))
                   const actual = await lpToken.balanceOf(sender.getAddress())
                   assert.equal(actual.toString(), expected.toString())
               })
@@ -546,10 +587,10 @@ const { developmentChains } = require("../../helper-hardhat-config")
                       true
                   )
                   // Approve pool to burn lpTokens
-                  const lpTokenAmount = utils.parseEther("2000") // 2_000 lpTokens
+                  const lpTokenAmount = utils.parseUnits("2000", 18) // 2_000 lpTokens
 
                   await pool.connect(sender)._burnLiquidityPoolTokens(lpTokenAmount)
-                  const expected = utils.parseEther("6000")
+                  const expected = utils.parseUnits("6000", 18)
                   const actual = await lpToken.balanceOf(sender.getAddress())
                   assert.equal(actual.toString(), expected.toString())
               })
@@ -591,12 +632,14 @@ const { developmentChains } = require("../../helper-hardhat-config")
           describe("_updateConstant", function () {
               it("return the correct value", async function () {
                   const wethAmount = utils.parseUnits("10", wethDecimals)
-                  const usdcAmount = utils.parseEther("20000", usdcDecimals)
+                  const usdcAmount = utils.parseUnits("20000", usdcDecimals)
                   await pool._updateConstant(wethAmount, usdcAmount)
                   const actual = await pool.getPriceConstant()
                   const expected = wethAmount
                       .mul(usdcAmount)
-                      .mul(10 ** BigNumber.from(36).sub(wethDecimals).sub(usdcDecimals))
+                      .mul(BigNumber.from(10).pow(BigNumber.from(36)))
+                      .div(BigNumber.from(10).pow(BigNumber.from(wethDecimals)))
+                      .div(BigNumber.from(10).pow(BigNumber.from(usdcDecimals)))
                   assert.equal(actual.toString(), expected.toString())
               })
           })

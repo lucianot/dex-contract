@@ -64,7 +64,6 @@ contract Pool is Ownable {
      * @return bool Whether the deposit was successful
      */
     function deposit(uint256 tokenAmount, string memory tokenTicker) public returns (bool) {
-        // TODO: add decimals calculation
         uint256 usdcAmount;
         uint256 wethAmount;
         uint256 wethInitialBalance = i_wethToken.balanceOf(address(this));
@@ -174,14 +173,14 @@ contract Pool is Ownable {
         if (keccak256(abi.encodePacked(tokenTicker)) == keccak256(abi.encodePacked("WETH"))) {
             wethAmount = tokenAmount;
             usdcAmount =
-                (wethAmount * uint256(usdcEthOraclePrice)) /
-                (10**(8 + i_wethDecimals - i_usdcDecimals));
+                (((wethAmount * uint256(usdcEthOraclePrice)) / 10**8) / 10**i_wethDecimals) *
+                10**i_usdcDecimals;
         } else if (
             keccak256(abi.encodePacked(tokenTicker)) == keccak256(abi.encodePacked("USDC"))
         ) {
             usdcAmount = tokenAmount;
             wethAmount =
-                (usdcAmount * (10**(8 + i_wethDecimals - i_usdcDecimals))) /
+                (((usdcAmount * 10**8) * 10**i_wethDecimals) / 10**i_usdcDecimals) /
                 uint256(usdcEthOraclePrice);
         } else {
             revert Pool__InvalidTicker();
@@ -349,11 +348,12 @@ contract Pool is Ownable {
     ) public pure returns (uint256) {
         // normalize decimals to 18
         int256 newSendBalance = int256(
-            (sendTokenBalance + sendTokenAmount) * 10**(18 - sendDecimals)
+            ((sendTokenBalance + sendTokenAmount) * 1e18) / 10**sendDecimals
         );
-        int256 receiveBalance = int256(receiveTokenBalance * 10**(18 - receiveDecimals));
+        int256 receiveBalance = int256((receiveTokenBalance * 1e18) / 10**receiveDecimals);
         int256 receiveTokenAmount = (int256(k) / newSendBalance - receiveBalance) * -1;
-        return uint256(receiveTokenAmount) / 10**(18 - receiveDecimals);
+
+        return (uint256(receiveTokenAmount) * 10**receiveDecimals) / 1e18;
     }
 
     // Pricing formula for swapping tokens in pool
@@ -365,13 +365,13 @@ contract Pool is Ownable {
     ) public pure returns (uint256) {
         // normalize price to 18 decimals
         return
-            ((receiveTokenAmount * 1e18 * 10**sendDecimals) / sendTokenAmount) /
+            (((receiveTokenAmount * 1e18) * 10**sendDecimals) / sendTokenAmount) /
             10**receiveDecimals;
     }
 
     // Mint liquidity tokens to depositor
     function _mintLiquidityPoolTokens(uint256 usdcAmount) public returns (bool) {
-        uint256 lpTokenAmount = usdcAmount * 2 * 1e12;
+        uint256 lpTokenAmount = (usdcAmount * 2 * 1e18) / 10**i_usdcDecimals;
         i_lpToken.mint(msg.sender, lpTokenAmount);
         return true;
     }
